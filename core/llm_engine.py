@@ -1,217 +1,134 @@
-import requests
 import json
 import time
-import re
-import base64
-from dataclasses import dataclass
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
+
+import requests
 from config import Config
 
-@dataclass
-class OllamaResponse:
-    success: bool
-    content: str
-    model: str
-    elapsed: float
-    error: Optional[str] = None
+SYSTEM_PROMPT = """You are Campus Voice AI.
+Tasks:
+1) Understand complaint intent using text and optionally image description.
+2) Decide one category: hostel | academic | infrastructure.
+3) Apply rules:
+   - If specific building mentioned (A/B/C/IT/ECE/Spark/CSE/Library/MBA/G/F/Main), treat as infrastructure.
+   - Facilities like bathroom/drinking water exist in both; if hosteller and no building specified, treat as hostel.
+   - Academics includes teaching quality, labs, department staff, exams, syllabus.
+   - If a different department is explicitly named for an academic issue, route to that department.
+4) For hostel authority targeting:
+   - If complaint is about the Warden → needs_bypass against 'warden'.
+   - If about Deputy Warden → needs_bypass against 'deputy_warden'.
+5) Provide a short reasoning and a confidence string (High/Medium/Low).
+6) Provide a 'privacy_level' hint if content is sensitive.
+Return strict JSON.
+
+Fields:
+- category: hostel | academic | infrastructure
+- mentioned_authority: one of none | warden | deputy_warden
+- needs_bypass: boolean
+- privacy_level: public | private | confidential
+- authority_mentioned: mirror of mentioned_authority
+- confidence: High | Medium | Low
+- reasoning: short string
+"""
+
+REPHRASE_PROMPT = """Rephrase the complaint in formal, precise English suitable for an official portal.
+- Keep it concise and respectful.
+- Include user context (department, residence, gender if needed) only when it clarifies the complaint.
+- If the category is academic, ensure clarity about course/staff/lab if provided.
+- If infrastructure, include building/facility names found or inferred.
+- If hostel subtle facilities issues from hosteller, clarify hostel context.
+
+Return only the rephrased single-paragraph text, no preface.
+"""
 
 class OllamaClient:
-    """Ollama client for LLM communication"""
-    
     def __init__(self, config: Config):
-        self.config = config
-        self.base_url = config.ollama_host
-        self.timeout = config.ollama_timeout
-        self.available_models = self._get_available_models()
-        
-    def _get_available_models(self) -> List[str]:
-        """Get available models from Ollama"""
-        try:
-            response = requests.get(f"{self.base_url}/api/tags", timeout=10)
-            if response.status_code == 200:
-                models = response.json().get('models', [])
-                return [model['name'] for model in models]
-        except Exception:
-            pass
-        return []
-    
-    def set_model(self, model_name: str, is_multimodal: bool = False):
-        """Set the current model"""
-        self.config.current_model = model_name
-        self.config.is_multimodal = is_multimodal
-    
-    def generate(self, prompt: str, image_data: Optional[str] = None) -> OllamaResponse:
-        """Generate response from LLM"""
-        if not self.config.current_model:
-            return OllamaResponse(False, "", "", 0, "No model selected")
-        
+        self.cfg = config
+
+    def _generate(self, prompt: str, images_b64: Optional[str] = None) -> str:
+        # Ollama /api/generate supports images for multimodal models like llava
         payload = {
-            "model": self.config.current_model,
+            "model": self.cfg.current_model,
             "prompt": prompt,
             "stream": False,
-            "format": "json",
-            "options": {"temperature": 0.1}
         }
-        
-        # Add image if provided and model supports it
-        if image_data and self.config.is_multimodal:
-            payload["images"] = [image_data]
-        
-        start_time = time.time()
-        
+        if images_b64 is not None and self.cfg.is_multimodal:
+            payload["images"] = [images_b64]
+        resp = requests.post(
+            f"{self.cfg.ollama_host}/api/generate",
+            json=payload,
+            timeout=self.cfg.ollama_timeout
+        )
+        resp.raise_for_status()
+        return resp.json().get("response", "")
+
+    def classify_complaint(self, complaint: str, image_data: Optional[str]) -> Dict[str, Any]:
+        prompt = SYSTEM_PROMPT + "\n\n" + json.dumps({
+            "complaint": complaint,
+        })
+        raw = self._generate(prompt, images_b64=image_data)
+        # Robust JSON extraction
+        txt = raw.strip()
+        start = txt.find("{")
+        end = txt.rfind("}")
+        if start == -1 or end == -1:
+            # Fallback minimal structure
+            return {
+                "category": "infrastructure",
+                "mentioned_authority": "none",
+                "needs_bypass": False,
+                "privacy_level": "public",
+                "authority_mentioned": "none",
+                "confidence": "Low",
+                "reasoning": "Fallback due to parsing"
+            }
         try:
-            response = requests.post(
-                f"{self.base_url}/api/generate",
-                json=payload,
-                timeout=self.timeout
-            )
-            response.raise_for_status()
-            
-            result = response.json()
-            elapsed = time.time() - start_time
-            
-            return OllamaResponse(
-                success=True,
-                content=result.get('response', '').strip(),
-                model=self.config.current_model,
-                elapsed=elapsed
-            )
-            
-        except Exception as e:
-            elapsed = time.time() - start_time
-            return OllamaResponse(
-                success=False,
-                content="",
-                model=self.config.current_model,
-                elapsed=elapsed,
-                error=str(e)
-            )
-    
-    def classify_complaint(self, complaint: str, image_data: Optional[str] = None) -> Dict[str, Any]:
-        """Classify complaint into one of three categories"""
-        
-        prompt = f"""Analyze this student complaint and classify it into ONE category:
+            data = json.loads(txt[start:end+1])
+        except Exception:
+            data = {
+                "category": "infrastructure",
+                "mentioned_authority": "none",
+                "needs_bypass": False,
+                "privacy_level": "public",
+                "authority_mentioned": "none",
+                "confidence": "Low",
+                "reasoning": "JSON parse error"
+            }
+        # Ensure required keys
+        data.setdefault("category", "infrastructure")
+        data.setdefault("mentioned_authority", "none")
+        data.setdefault("authority_mentioned", data["mentioned_authority"])
+        data.setdefault("needs_bypass", False)
+        data.setdefault("privacy_level", "public")
+        data.setdefault("confidence", "Medium")
+        data.setdefault("reasoning", "LLM analysis")
+        return data
 
-COMPLAINT: "{complaint}"
-"""
-        
-        if image_data:
-            prompt += "\nIMAGE: Analyze the provided image for additional context.\n"
-        
-        prompt += """
-Classify into EXACTLY ONE category:
-- hostel: accommodation, rooms, mess, food, warden, deputy warden, hostel facilities
-- academic: professors, classes, exams, grades, curriculum, departments, teaching
-- infrastructure: buildings, facilities, parking, library, maintenance, technology, systems
-
-Respond with JSON:
-{
-    "category": "hostel|academic|infrastructure",
-    "confidence": "high|medium|low",
-    "reasoning": "brief explanation"
-}"""
-
-        response = self.generate(prompt, image_data)
-        
-        if response.success:
-            try:
-                result = json.loads(response.content)
-                # Validate category
-                if result.get('category') in ['hostel', 'academic', 'infrastructure']:
-                    return result
-            except json.JSONDecodeError:
-                pass
-        
-        # Fallback classification using keywords
-        return self._fallback_classify(complaint)
-    
-    def detect_authority_bypass(self, complaint: str, category: str, image_data: Optional[str] = None) -> Dict[str, Any]:
-        """Detect if complaint is against specific authority and needs bypass"""
-        
+    def detect_authority_bypass(self, complaint: str, category: str, image_data: Optional[str]) -> Dict[str, Any]:
+        # If not hostel, no bypass needed
         if category != "hostel":
             return {
                 "needs_bypass": False,
                 "mentioned_authority": "none",
-                "reasoning": "Only hostel complaints can have authority bypass"
+                "reasoning": "Non-hostel complaint"
             }
-        
-        prompt = f"""Analyze this hostel complaint for authority bypass needs:
-
-COMPLAINT: "{complaint}"
-"""
-        
-        if image_data:
-            prompt += "\nIMAGE: Consider image content.\n"
-        
-        prompt += """
-Determine if complaint is AGAINST a specific authority:
-
-{
-    "needs_bypass": true/false,
-    "mentioned_authority": "none|warden|deputy_warden",
-    "reasoning": "explanation"
-}
-
-BYPASS RULES:
-- needs_bypass: true if complaint CRITICIZES/COMPLAINS ABOUT an authority
-- mentioned_authority: WHO is being complained about
-- Look for negative context: "ignoring", "rude", "bribery", "corruption", "not helping"
-
-Examples:
-- "warden is rude" → needs_bypass: true, mentioned_authority: "warden"
-- "deputy warden not responding" → needs_bypass: true, mentioned_authority: "deputy_warden"
-- "hostel food is bad" → needs_bypass: false, mentioned_authority: "none"
-"""
-
-        response = self.generate(prompt, image_data)
-        
-        if response.success:
-            try:
-                result = json.loads(response.content)
-                if isinstance(result.get('needs_bypass'), bool):
-                    return result
-            except json.JSONDecodeError:
-                pass
-        
-        # Fallback bypass detection
-        return self._fallback_bypass_detection(complaint)
-    
-    def _fallback_classify(self, complaint: str) -> Dict[str, Any]:
-        """Fallback classification using keyword matching"""
-        complaint_lower = complaint.lower()
-        scores = {}
-        
-        for category, keywords in self.config.authority_keywords.items():
-            matches = sum(1 for keyword in keywords if keyword in complaint_lower)
-            scores[category] = matches
-        
-        # Get category with highest score
-        best_category = max(scores, key=scores.get)
-        confidence = "high" if scores[best_category] >= 2 else "medium" if scores[best_category] >= 1 else "low"
-        
+        # Reuse classify JSON to capture authority mentions (keeps single pass OK)
+        data = self.classify_complaint(complaint, image_data)
+        mentioned = data.get("mentioned_authority", "none")
+        needs = data.get("needs_bypass", False)
         return {
-            "category": best_category,
-            "confidence": confidence,
-            "reasoning": f"Keyword-based classification: {scores[best_category]} matches"
-        }
-    
-    def _fallback_bypass_detection(self, complaint: str) -> Dict[str, Any]:
-        """Fallback bypass detection using keywords"""
-        complaint_lower = complaint.lower()
-        
-        # Check for authority mentions
-        mentioned = "none"
-        if "deputy warden" in complaint_lower:
-            mentioned = "deputy_warden"
-        elif "warden" in complaint_lower:
-            mentioned = "warden"
-        
-        # Check for negative context
-        negative_indicators = ["bribery", "corruption", "ignoring", "rude", "not helping", "not responding"]
-        needs_bypass = mentioned != "none" and any(indicator in complaint_lower for indicator in negative_indicators)
-        
-        return {
-            "needs_bypass": needs_bypass,
+            "needs_bypass": bool(needs),
             "mentioned_authority": mentioned,
-            "reasoning": f"Keyword-based detection: authority={mentioned}, negative_context={needs_bypass}"
+            "reasoning": f"Complaint targets {mentioned}" if mentioned != "none" else "No specific authority targeted"
         }
+
+    def rephrase_complaint(self, complaint: str, user_context: Dict[str, Any],
+                           image_data: Optional[str], classification_hint: str) -> str:
+        ctx = {
+            "complaint": complaint,
+            "user_context": user_context,
+            "category": classification_hint
+        }
+        prompt = REPHRASE_PROMPT + "\n\n" + json.dumps(ctx)
+        out = self._generate(prompt, images_b64=image_data)
+        return out.strip()
