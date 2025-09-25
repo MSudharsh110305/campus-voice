@@ -1,7 +1,7 @@
 from typing import Dict, Any
 import re
 
-def validate_complaint_data(data: Dict[str, Any]) -> Dict[str, Any]:
+def validate_complaint_submission(data: Dict[str, Any]) -> Dict[str, Any]:
     """Validate complaint submission data"""
     errors = []
     
@@ -10,11 +10,13 @@ def validate_complaint_data(data: Dict[str, Any]) -> Dict[str, Any]:
         errors.append('complaint_text is required')
     elif len(data['complaint_text'].strip()) < 10:
         errors.append('complaint_text must be at least 10 characters')
+    elif len(data['complaint_text']) > 5000:
+        errors.append('complaint_text cannot exceed 5000 characters')
     
     if not data.get('user_department'):
         errors.append('user_department is required')
     
-    # Valid departments (from your config)
+    # Valid departments
     valid_departments = [
         'Electronics & Communication Engineering',
         'Computer Science & Engineering',
@@ -39,9 +41,16 @@ def validate_complaint_data(data: Dict[str, Any]) -> Dict[str, Any]:
         if not re.match(email_pattern, data['user_email']):
             errors.append('Invalid email format')
     
-    # Privacy level validation
-    if data.get('privacy_level') and data['privacy_level'] not in ['public', 'private', 'confidential']:
-        errors.append('privacy_level must be public, private, or confidential')
+    # Phone validation (if provided)
+    if data.get('user_phone'):
+        phone_pattern = r'^\+?[1-9]\d{1,14}$'
+        if not re.match(phone_pattern, data['user_phone'].replace(' ', '').replace('-', '')):
+            errors.append('Invalid phone number format')
+    
+    # Visibility validation
+    valid_visibilities = ['public', 'private', 'confidential']
+    if data.get('visibility') and data['visibility'] not in valid_visibilities:
+        errors.append(f'Invalid visibility. Must be one of: {", ".join(valid_visibilities)}')
     
     return {
         'valid': len(errors) == 0,
@@ -59,6 +68,8 @@ def validate_vote_data(data: Dict[str, Any]) -> Dict[str, Any]:
     
     if not data.get('user_id'):
         errors.append('user_id is required')
+    elif len(data['user_id'].strip()) < 3:
+        errors.append('user_id must be at least 3 characters')
     
     return {
         'valid': len(errors) == 0,
