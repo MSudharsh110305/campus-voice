@@ -1,3 +1,8 @@
+# Ignore Python cache files
 __pycache__/
+
+# Ignore Firebase key
 firebase-key.json
+
+# Ignore environment variables file
 .env
