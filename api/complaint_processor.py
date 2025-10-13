@@ -14,7 +14,6 @@ sys.path.insert(0, os.path.join(project_root, 'core'))
 
 # Import core modules
 from config import Config
-from hybrid_classifier import CampusVoiceClassifier
 from authority_mapper import AuthorityMapper
 from priority_scorer import PriorityScorer
 from intelligent_llm_engine import IntelligentLLMEngine
