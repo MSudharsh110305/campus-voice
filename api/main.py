@@ -11,7 +11,7 @@ if project_root not in sys.path:
 from api.routes import api_bp
 from api.config.api_config import APIConfig
 from api.firebase_service import FirebaseService
-from api.complaint_processor import ComplaintProcessor
+from api.complaint_processor import IntelligentComplaintProcessor
 
 def create_app():
     """Create and configure Flask application"""
@@ -25,19 +25,19 @@ def create_app():
     try:
         firebase_service = FirebaseService()
         app.firebase_service = firebase_service
-        print("🔥 Firebase service initialized and attached to app")
+        print("🔥 Firebase service initialized")
     except Exception as e:
         print(f"❌ Failed to initialize Firebase: {e}")
         raise
     
-    # Initialize and start complaint processor
+    # Initialize and start intelligent complaint processor
     try:
-        complaint_processor = ComplaintProcessor()
+        complaint_processor = IntelligentComplaintProcessor()
         complaint_processor.start_background_processing()
         app.complaint_processor = complaint_processor
-        print("🤖 LLM Complaint Processor started in background")
+        print("🧠 Intelligent LLM Complaint Processor started")
     except Exception as e:
-        print(f"❌ Failed to initialize complaint processor: {e}")
+        print(f"❌ Failed to initialize LLM processor: {e}")
         raise
     
     # Register API blueprint
@@ -47,11 +47,20 @@ def create_app():
     @app.route('/')
     def root():
         return {
-            'service': 'Campus Grievance Portal API',
-            'version': '1.0',
-            'status': 'running',
-            'firebase': 'connected',
-            'llm_processor': 'active',
+            'service': 'Campus Grievance Portal API v2.0',
+            'type': 'Pseudo Anonymous with LLM Intelligence',
+            'features': [
+                'Email-only pseudo-anonymous submissions',
+                'LLM-powered professional rephrasing',
+                'Intelligent visibility determination',
+                'Smart category classification',
+                'Automatic authority routing'
+            ],
+            'privacy': [
+                'Pseudo-anonymous (email-only identification)',
+                'LLM determines appropriate visibility levels',
+                'Sensitive content automatically handled confidentially'
+            ],
             'endpoints': {
                 'health': '/api/v1/health',
                 'submit_complaint': '/api/v1/complaints',
@@ -60,7 +69,8 @@ def create_app():
                 'vote': '/api/v1/complaints/{id}/vote',
                 'categories': '/api/v1/complaints/categories/{category}',
                 'stats': '/api/v1/stats',
-                'departments': '/api/v1/departments'
+                'departments': '/api/v1/departments',
+                'llm_capabilities': '/api/v1/llm/capabilities'
             }
         }
     
@@ -73,12 +83,13 @@ def create_app():
     return app
 
 if __name__ == '__main__':
-    print("🏗️ CAMPUS GRIEVANCE PORTAL API")
-    print("=" * 50)
+    print("🏗️ CAMPUS GRIEVANCE PORTAL API v2.0")
+    print("=" * 60)
+    print("🎭 Type: Pseudo Anonymous with LLM Intelligence")
     print("🔥 Firebase: Connecting...")
-    print("🤖 LLM Processor: Initializing...")
+    print("🧠 LLM Processor: Initializing...")
     print("📡 API Server: Starting...")
-    print("=" * 50)
+    print("=" * 60)
     
     try:
         app = create_app()
@@ -87,10 +98,20 @@ if __name__ == '__main__':
         print("🔗 API Base URL: http://localhost:5000")
         print("📋 Health Check: http://localhost:5000/api/v1/health")
         print("📊 Statistics: http://localhost:5000/api/v1/stats")
-        print("📝 Submit Complaint: POST /api/v1/complaints")
-        print("🗳️ Vote on Complaint: POST /api/v1/complaints/{id}/vote")
+        print("🧠 LLM Capabilities: http://localhost:5000/api/v1/llm/capabilities")
+        print("\n📝 Submit Complaint: POST /api/v1/complaints")
+        print("🗳️ Vote on Complaints: POST /api/v1/complaints/{id}/vote")
+        print("\n🎭 PRIVACY FEATURES:")
+        print("   • Email-only pseudo-anonymous submissions")
+        print("   • LLM-determined visibility levels")
+        print("   • Automatic sensitive content protection")
+        print("\n🧠 LLM INTELLIGENCE:")
+        print("   • Professional complaint rephrasing")
+        print("   • Smart visibility determination")
+        print("   • Accurate category classification")
+        print("   • Intelligent authority routing")
         print("\n⏹️ Press Ctrl+C to stop all services")
-        print("=" * 50)
+        print("=" * 60)
         
         app.run(debug=True, host='0.0.0.0', port=5000)
         

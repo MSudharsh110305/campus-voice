@@ -12,32 +12,35 @@ if project_root not in sys.path:
 # Add core directory to path
 sys.path.insert(0, os.path.join(project_root, 'core'))
 
-# Import core LLM modules
+# Import core modules
 from config import Config
 from hybrid_classifier import CampusVoiceClassifier
-from llm_engine import OllamaClient
+from authority_mapper import AuthorityMapper
+from priority_scorer import PriorityScorer
+from intelligent_llm_engine import IntelligentLLMEngine
 
 # Import API modules
 from api.firebase_service import FirebaseService
-from api.models import ProcessedComplaint
+from api.models import LLMProcessingResult
 
-class ComplaintProcessor:
-    """LLM-powered complaint processing engine"""
+class IntelligentComplaintProcessor:
+    """LLM-driven complaint processor with intelligent rephrasing and visibility detection"""
     
     def __init__(self):
-        print("🤖 Initializing LLM Complaint Processor...")
+        print("🤖 Initializing Intelligent Complaint Processor...")
         try:
             # Initialize services
             self.config = Config()
             self.firebase_service = FirebaseService()
-            self.classifier = CampusVoiceClassifier(self.config)
-            self.llm_client = OllamaClient(self.config)
+            self.llm_engine = IntelligentLLMEngine(self.config)
+            self.authority_mapper = AuthorityMapper(self.config)
+            self.priority_scorer = PriorityScorer(self.config)
             
             # Processing control
             self.is_running = False
             self.processing_thread = None
             
-            print("✅ LLM Complaint Processor initialized successfully")
+            print("✅ Intelligent Complaint Processor ready")
             
         except Exception as e:
             print(f"❌ Failed to initialize processor: {e}")
@@ -45,96 +48,85 @@ class ComplaintProcessor:
             traceback.print_exc()
             raise
     
-    def process_single_complaint(self, queued_complaint) -> bool:
-        """Process a single complaint through the complete LLM pipeline"""
+    def process_queued_complaint(self, queued_complaint) -> bool:
+        """Process raw complaint with complete LLM intelligence"""
         complaint_id = queued_complaint.complaint_id
         
         try:
-            print(f"🔄 Processing complaint {complaint_id}...")
+            print(f"\n🔄 Processing raw complaint: {complaint_id}")
+            print(f"   📝 Original: {queued_complaint.original_complaint[:80]}...")
+            print(f"   🏫 Department: {queued_complaint.user_department}")
+            
             start_time = time.time()
             
-            # =============== STEP 1: LLM Classification ===============
-            classification_result = self.classifier.classify(
-                complaint=queued_complaint.complaint_text,
-                user_department=queued_complaint.user_department,
-                upvotes=0,  # No votes yet for queued complaints
-                image_data=queued_complaint.image_data,
-                user_residence=queued_complaint.user_residence
-            )
-            
-            print(f"   📂 Classification: {classification_result.category}")
-            print(f"   🎯 Authority: {classification_result.final_authority}")
-            print(f"   ⚡ Priority: {classification_result.priority_level}")
-            
-            # =============== STEP 2: LLM Rephrasing ===============
+            # =============== STEP 1: LLM Complete Processing ===============
             user_context = {
                 'department': queued_complaint.user_department,
                 'residence': queued_complaint.user_residence,
                 'email': queued_complaint.user_email
             }
             
-            try:
-                rephrased_complaint = self.llm_client.rephrase_complaint(
-                    complaint=queued_complaint.complaint_text,
-                    user_context=user_context,
-                    image_data=queued_complaint.image_data,
-                    classification_hint=classification_result.category
-                )
-                print(f"   ✍️ Complaint rephrased successfully")
-            except Exception as e:
-                print(f"   ⚠️ Rephrasing failed, using original: {e}")
-                rephrased_complaint = queued_complaint.complaint_text
+            # LLM processes everything: rephrasing, visibility, classification
+            llm_result = self.llm_engine.process_complaint_complete(
+                queued_complaint.original_complaint, 
+                user_context
+            )
             
-            # =============== STEP 3: Image Description (if applicable) ===============
-            image_description = None
-            if queued_complaint.image_data:
-                try:
-                    # Use LLM to describe the image
-                    image_description = self.llm_client.describe_image(queued_complaint.image_data)
-                    print(f"   🖼️ Image description generated")
-                except Exception as e:
-                    print(f"   ⚠️ Image description failed: {e}")
-                    image_description = "Image provided but description unavailable"
+            print(f"   ✍️ Rephrased: {llm_result['rephrased_complaint'][:60]}...")
+            print(f"   🔓 LLM Visibility: {llm_result['visibility']}")
+            print(f"   📂 LLM Category: {llm_result['category']}")
             
-            # =============== STEP 4: Determine Subcategory ===============
-            subcategory = None
-            if classification_result.category == 'academic':
-                # For academic complaints, use the user's department as subcategory
-                subcategory = queued_complaint.user_department
+            # =============== STEP 2: Authority Mapping ===============
+            routing = self.authority_mapper.route_complaint(
+                category=llm_result['category'],
+                user_department=queued_complaint.user_department,
+                needs_bypass=False,  # Could be enhanced with LLM detection
+                mentioned_authority='none'
+            )
             
-            # =============== STEP 5: Create Processed Complaint ===============
+            print(f"   🎯 Authority: {routing['final_authority']}")
+            
+            # =============== STEP 3: Priority Scoring ===============
+            priority = self.priority_scorer.calculate_priority(
+                llm_result['rephrased_complaint'], 
+                upvotes=0
+            )
+            
+            print(f"   ⚡ Priority: {priority['level']}")
+            
+            # =============== STEP 4: Create Processing Result ===============
             processing_time = time.time() - start_time
             
-            processed_complaint = ProcessedComplaint(
+            llm_processing_result = LLMProcessingResult(
                 complaint_id=complaint_id,
-                original_complaint=queued_complaint.complaint_text,
-                rephrased_complaint=rephrased_complaint,
-                classification=classification_result.category,
-                subcategory=subcategory,
-                final_authority=classification_result.final_authority,
-                routing_path=classification_result.routing_path,
-                priority_level=classification_result.priority_level,
-                confidence=classification_result.confidence,
-                reasoning=classification_result.reasoning,
+                original_complaint=queued_complaint.original_complaint,
+                rephrased_complaint=llm_result['rephrased_complaint'],
+                llm_determined_visibility=llm_result['visibility'],
+                classification=llm_result['category'],
+                subcategory=queued_complaint.user_department if llm_result['category'] == 'academic' else None,
+                final_authority=routing['final_authority'],
+                routing_path=routing['routing_path'],
+                priority_level=priority['level'],
+                confidence=llm_result.get('confidence', 'Medium'),
+                reasoning=llm_result.get('reasoning', 'LLM-based processing'),
                 processing_time=processing_time,
-                model_used=classification_result.model_used,
+                model_used=llm_result.get('model_used', 'intelligent_llm_engine'),
                 created_at=queued_complaint.created_at,
                 processed_at=datetime.now(timezone.utc),
-                visibility=queued_complaint.visibility,
                 user_department=queued_complaint.user_department,
                 user_email=queued_complaint.user_email
             )
             
-            # =============== STEP 6: Save to Firebase ===============
-            success = self.firebase_service.save_processed_complaint(processed_complaint)
+            # =============== STEP 5: Save and Clean Queue ===============
+            success = self.firebase_service.save_llm_processed_complaint(llm_processing_result)
             
             if success:
-                print(f"✅ Successfully processed complaint {complaint_id}")
-                print(f"   ⏱️ Total processing time: {processing_time:.2f}s")
-                print(f"   🔓 Visibility: {queued_complaint.visibility}")
+                print(f"✅ Successfully processed and saved: {complaint_id}")
+                print(f"   ⏱️ Processing time: {processing_time:.2f}s")
+                print(f"   🧠 Model: {llm_result.get('model_used', 'N/A')}")
                 return True
             else:
-                print(f"❌ Failed to save processed complaint {complaint_id}")
+                print(f"❌ Failed to save processed complaint: {complaint_id}")
                 return False
                 
         except Exception as e:
@@ -142,68 +134,71 @@ class ComplaintProcessor:
             import traceback
             traceback.print_exc()
             
-            # Create error fallback processing result
+            # Try to save error fallback (but still clean queue)
             try:
-                error_processed = ProcessedComplaint(
-                    complaint_id=complaint_id,
-                    original_complaint=queued_complaint.complaint_text,
-                    rephrased_complaint=queued_complaint.complaint_text,
-                    classification='infrastructure',  # fallback
-                    subcategory=None,
-                    final_authority='Administrative Officer (AO)',
-                    routing_path=['⚠️ Error in LLM processing - Routed to AO'],
-                    priority_level='Medium',
-                    confidence='Low',
-                    reasoning=f'LLM processing error: {str(e)}',
-                    processing_time=0,
-                    model_used='error_fallback',
-                    created_at=queued_complaint.created_at,
-                    processed_at=datetime.now(timezone.utc),
-                    visibility=queued_complaint.visibility,
-                    user_department=queued_complaint.user_department,
-                    user_email=queued_complaint.user_email
-                )
-                
-                self.firebase_service.save_processed_complaint(error_processed)
-                print(f"⚠️ Saved error fallback for complaint {complaint_id}")
-                
+                self._save_error_fallback(queued_complaint, str(e))
             except Exception as fallback_error:
-                print(f"💥 Critical error - could not save fallback: {fallback_error}")
+                print(f"💥 Critical: Could not save error fallback: {fallback_error}")
             
             return False
     
+    def _save_error_fallback(self, queued_complaint, error_message: str):
+        """Save error fallback and clean queue"""
+        
+        error_result = LLMProcessingResult(
+            complaint_id=queued_complaint.complaint_id,
+            original_complaint=queued_complaint.original_complaint,
+            rephrased_complaint=queued_complaint.original_complaint,  # Use original
+            llm_determined_visibility='public',  # Safe default
+            classification='infrastructure',  # Safe default
+            subcategory=None,
+            final_authority='Administrative Officer (AO)',
+            routing_path=['⚠️ Error Processing - Routed to Admin'],
+            priority_level='Medium',
+            confidence='Low',
+            reasoning=f'Error fallback: {error_message}',
+            processing_time=0,
+            model_used='error_fallback',
+            created_at=queued_complaint.created_at,
+            processed_at=datetime.now(timezone.utc),
+            user_department=queued_complaint.user_department,
+            user_email=queued_complaint.user_email
+        )
+        
+        self.firebase_service.save_llm_processed_complaint(error_result)
+        print(f"⚠️ Error fallback saved for: {queued_complaint.complaint_id}")
+    
     def processing_loop(self):
-        """Main processing loop - continuously monitors queue"""
-        print("🚀 Starting LLM processing loop...")
-        print("📡 Monitoring Firebase queue for new complaints...")
+        """Main processing loop - monitors queue continuously"""
+        print("🚀 Starting intelligent complaint processing loop...")
+        print("📡 Monitoring queue for raw complaints...")
         
         consecutive_empty_checks = 0
         
         while self.is_running:
             try:
-                # Get next complaint from queue
+                # Get next raw complaint from queue
                 queued_complaint = self.firebase_service.get_next_queued_complaint()
                 
                 if queued_complaint:
                     consecutive_empty_checks = 0
-                    print(f"\n📋 New complaint detected: {queued_complaint.complaint_id}")
-                    print(f"   Department: {queued_complaint.user_department}")
-                    print(f"   Visibility: {queued_complaint.visibility}")
-                    print(f"   Text: {queued_complaint.complaint_text[:100]}...")
                     
-                    # Process the complaint
-                    success = self.process_single_complaint(queued_complaint)
+                    # Process with full LLM intelligence
+                    success = self.process_queued_complaint(queued_complaint)
                     
                     if success:
-                        print(f"🎉 Complaint {queued_complaint.complaint_id} processed successfully!\n")
+                        print(f"🎉 Complaint fully processed and queue cleaned!")
                     else:
-                        print(f"⚠️ Complaint {queued_complaint.complaint_id} processing failed\n")
+                        print(f"⚠️ Processing completed with errors")
+                        
+                    print()  # Add spacing between complaints
+                    
                 else:
                     consecutive_empty_checks += 1
-                    if consecutive_empty_checks % 10 == 1:  # Print every 10 empty checks
-                        print("⏳ No pending complaints, waiting for new submissions...")
+                    if consecutive_empty_checks % 20 == 1:  # Print every 20 empty checks
+                        print("⏳ No raw complaints in queue, waiting for submissions...")
                     
-                    time.sleep(3)  # Wait 3 seconds before checking again
+                    time.sleep(3)  # Wait 3 seconds before next check
                     
             except KeyboardInterrupt:
                 print("\n⏹️ Processing loop stopped by user")
@@ -231,7 +226,7 @@ class ComplaintProcessor:
             print("⏹️ LLM processing stopped")
     
     def run_blocking(self):
-        """Run processor in blocking mode (for standalone execution)"""
+        """Run processor in blocking mode"""
         self.is_running = True
         try:
             self.processing_loop()
@@ -242,18 +237,22 @@ class ComplaintProcessor:
 
 # =============== STANDALONE EXECUTION ===============
 if __name__ == '__main__':
-    print("🤖 Campus Grievance Portal - LLM Complaint Processor")
-    print("=" * 60)
-    print("📝 This service processes complaints using AI/LLM technology")
-    print("🔄 Monitoring Firebase queue for new complaints...")
+    print("🤖 CAMPUS GRIEVANCE PORTAL - INTELLIGENT LLM PROCESSOR")
+    print("=" * 70)
+    print("🧠 This service uses advanced LLM technology to:")
+    print("   • Professionally rephrase raw complaints")
+    print("   • Intelligently determine visibility levels")
+    print("   • Accurately classify complaint categories")
+    print("   • Route to appropriate authorities")
+    print("🔄 Monitoring Firebase queue for raw submissions...")
     print("⏹️ Press Ctrl+C to stop")
-    print("=" * 60)
+    print("=" * 70)
     
     try:
-        processor = ComplaintProcessor()
+        processor = IntelligentComplaintProcessor()
         processor.run_blocking()
     except KeyboardInterrupt:
-        print("\n🛑 LLM Processor stopped by user")
+        print("\n🛑 Intelligent Processor stopped by user")
     except Exception as e:
         print(f"\n💥 Critical error: {e}")
         import traceback
