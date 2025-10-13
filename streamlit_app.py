@@ -48,7 +48,7 @@ tabs = st.tabs([
 # -------- Submit Complaint --------
 with tabs[0]:
     st.subheader("Submit Pseudo-Anonymous Complaint")
-    st.write("Only email is optional; no phone number is used.")
+    st.write("User ID, gender, department, and residence are required.")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -56,30 +56,41 @@ with tabs[0]:
             "Complaint Text",
             height=180,
             placeholder="Describe the issue in detail...",
-            value="The WiFi in hostel is extremely slow and disconnects frequently during online classes."
+            value="ECE labs have outdated equipment and are frequently unavailable for student use."
         )
-        user_department = st.text_input(
-            "Department (full name or abbreviation)",
-            value="Computer Science & Engineering"
-        )
-        user_residence = st.text_input("Residence (optional)", value="Hostel A")
+        user_id = st.text_input("User ID", value="student_123")
+        gender = st.selectbox("Gender", ["male", "female", "other"], index=0)
     with col2:
-        user_email = st.text_input("Email (optional)", value="student@college.edu")
-        image_b64 = st.text_area("Image (base64, optional)", height=120)
-        submit_btn = st.button("Submit Complaint", use_container_width=True)
+        user_department = st.selectbox(
+            "Your Department",
+            [
+                'Electronics & Communication Engineering',
+                'Computer Science & Engineering',
+                'Robotics and Automation',
+                'Mechanical Engineering',
+                'Electrical & Electronics Engineering',
+                'Electronics & Instrumentation Engineering',
+                'Biomedical Engineering',
+                'Aeronautical Engineering',
+                'Civil Engineering',
+                'Information Technology',
+                'Management Studies',
+                'Artificial Intelligence and Data Science'
+            ],
+            index=1
+        )
+        user_residence = st.text_input("Residence (e.g., Hostel A or Day Scholar)", value="Hostel A")
+
+    submit_btn = st.button("Submit Complaint", use_container_width=True)
 
     if submit_btn:
         payload = {
             "complaint_text": complaint_text.strip(),
+            "user_id": user_id.strip(),
+            "gender": gender.strip().lower(),
             "user_department": user_department.strip(),
+            "user_residence": user_residence.strip()
         }
-        if user_residence.strip():
-            payload["user_residence"] = user_residence.strip()
-        if user_email.strip():
-            payload["user_email"] = user_email.strip()
-        if image_b64.strip():
-            payload["image_data"] = image_b64.strip()
-
         st.code(pretty(payload), language="json")
         code, data = do_request("POST", api_url("/complaints"), json=payload)
         st.write(f"Status: {code}")

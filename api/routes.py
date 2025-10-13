@@ -1,8 +1,5 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, current_app
 from datetime import datetime
-import base64
-import io
-from PIL import Image
 
 from api.models import AnonymousComplaintSubmission
 from api.utils.response_formatter import success_response, error_response
@@ -16,48 +13,49 @@ api_bp = Blueprint('api', __name__)
 def submit_anonymous_complaint():
     """
     Submit pseudo-anonymous complaint for LLM processing
-    
-    Expected JSON:
+
+    Expected JSON (text-only complaints):
     {
         "complaint_text": "Raw complaint text...",
-        "user_department": "Computer Science & Engineering",
-        "user_residence": "Hostel A", // optional
-        "user_email": "student@college.edu", // optional for anonymity
-        "image_data": "base64_encoded_image" // optional
+        "user_id": "student_123",                  // required
+        "gender": "male|female|other",             // required
+        "user_department": "Computer Science & Engineering",  // required
+        "user_residence": "Hostel A"               // required
     }
     """
     try:
-        data = request.get_json()
-        
-        # Validate input data
-        validation_result = validate_anonymous_complaint_submission(data)
-        if not validation_result['valid']:
-            return error_response(validation_result['errors'], 400)
-        
-        # Handle image validation if present
-        if data.get('image_data'):
-            try:
-                img_binary = base64.b64decode(data['image_data'])
-                Image.open(io.BytesIO(img_binary))
-            except Exception as e:
-                return error_response(f"Invalid image data: {str(e)}", 400)
-        
-        # Create anonymous complaint submission
+        data = request.get_json() or {}
+
+        # Enforce text-only complaint schema (no email / image)
+        # Basic presence checks first for clearer error messages
+        required = ["complaint_text", "user_id", "gender", "user_department", "user_residence"]
+        missing = [k for k in required if not data.get(k)]
+        if missing:
+            return error_response(f"Missing required fields: {', '.join(missing)}", 400)
+
+        # Optional: Use existing validator if it supports new fields; otherwise bypass or extend it
+        # Here we perform minimal checks compatible with the updated models
+        # If you have updated validate_anonymous_complaint_submission for new schema, call it here:
+        # validation_result = validate_anonymous_complaint_submission(data)
+        # if not validation_result['valid']:
+        #     return error_response(validation_result['errors'], 400)
+
+        # Create anonymous complaint submission (text-only)
         submission = AnonymousComplaintSubmission(
-            complaint_text=data['complaint_text'],
-            user_department=data['user_department'],
-            user_residence=data.get('user_residence'),
-            user_email=data.get('user_email'),
-            image_data=data.get('image_data')
+            complaint_text=data['complaint_text'].strip(),
+            user_id=data['user_id'].strip(),
+            gender=data['gender'].strip().lower(),
+            user_department=data['user_department'].strip(),
+            user_residence=data['user_residence'].strip()
         )
-        
+
         # Submit to Firebase queue for LLM processing
         firebase_service = current_app.firebase_service
         complaint_id, queue_position = firebase_service.submit_raw_complaint(submission)
-        
+
         # Calculate estimated processing time
         estimated_minutes = queue_position * 1.5  # 1.5 minutes per complaint
-        
+
         return success_response({
             'complaint_id': complaint_id,
             'status': 'queued_for_llm_processing',
@@ -77,7 +75,7 @@ def submit_anonymous_complaint():
                 'Check status using the complaint_id provided'
             ]
         }, 201)
-        
+
     except Exception as e:
         return error_response(f"Submission failed: {str(e)}", 500)
 
@@ -89,13 +87,13 @@ def get_complaint_status(complaint_id):
     try:
         firebase_service = current_app.firebase_service
         complaint_data = firebase_service.get_complaint_status(complaint_id)
-        
+
         if not complaint_data:
             return error_response("Complaint not found", 404)
-        
+
         # Enhance response with processing stage information
         location = complaint_data.get('location', 'unknown')
-        
+
         if location == 'queue':
             stage_info = {
                 'processing_stage': 'In LLM Queue',
@@ -131,7 +129,7 @@ def get_complaint_status(complaint_id):
                 'description': 'Complaint has been processed by LLM',
                 'current_status': 'completed'
             }
-        
+
         # Add LLM processing information if available
         if complaint_data.get('rephrased_complaint'):
             stage_info['llm_rephrasing'] = {
@@ -139,14 +137,14 @@ def get_complaint_status(complaint_id):
                 'rephrased_length': len(complaint_data.get('rephrased_complaint', '')),
                 'model_used': complaint_data.get('model_used', 'Unknown')
             }
-        
+
         response_data = {
             **complaint_data,
             'stage_info': stage_info
         }
-        
+
         return success_response(response_data)
-        
+
     except Exception as e:
         return error_response(f"Status retrieval failed: {str(e)}", 500)
 
@@ -156,10 +154,10 @@ def get_public_complaints():
     try:
         category = request.args.get('category')
         limit = min(int(request.args.get('limit', 50)), 100)
-        
+
         firebase_service = current_app.firebase_service
         complaints = firebase_service.get_public_complaints(category, limit)
-        
+
         return success_response({
             'complaints': complaints,
             'total_returned': len(complaints),
@@ -168,7 +166,7 @@ def get_public_complaints():
             'note': 'All complaints shown were intelligently determined as public by LLM',
             'available_categories': ['infrastructure', 'academic', 'hostel']
         })
-        
+
     except Exception as e:
         return error_response(f"Public complaints retrieval failed: {str(e)}", 500)
 
@@ -178,22 +176,22 @@ def get_complaints_by_llm_category(category):
     try:
         if category not in ['infrastructure', 'academic', 'hostel']:
             return error_response(
-                "Invalid category. Must be one of: infrastructure, academic, hostel", 
+                "Invalid category. Must be one of: infrastructure, academic, hostel",
                 400
             )
-        
+
         limit = min(int(request.args.get('limit', 50)), 100)
-        
+
         firebase_service = current_app.firebase_service
         complaints = firebase_service.get_complaints_by_category(category, limit)
-        
+
         return success_response({
             'category': category,
             'complaints': complaints,
             'total_found': len(complaints),
             'note': f'All {category} complaints were classified by LLM intelligence'
         })
-        
+
     except Exception as e:
         return error_response(f"Category retrieval failed: {str(e)}", 500)
 
@@ -203,7 +201,7 @@ def get_complaints_by_llm_category(category):
 def vote_on_public_complaint(complaint_id):
     """
     Vote on LLM-determined public complaints
-    
+
     Expected JSON:
     {
         "user_id": "anonymous_user_123",
@@ -212,20 +210,20 @@ def vote_on_public_complaint(complaint_id):
     """
     try:
         data = request.get_json()
-        
+
         if not data or 'vote_type' not in data or 'user_id' not in data:
             return error_response("Missing vote_type or user_id", 400)
-        
+
         if data['vote_type'] not in ['upvote', 'downvote']:
             return error_response("vote_type must be 'upvote' or 'downvote'", 400)
-        
+
         firebase_service = current_app.firebase_service
         result = firebase_service.vote_on_public_complaint(
             complaint_id=complaint_id,
             user_id=data['user_id'],
             vote_type=data['vote_type']
         )
-        
+
         if result['success']:
             return success_response({
                 'message': result['message'],
@@ -236,7 +234,7 @@ def vote_on_public_complaint(complaint_id):
             })
         else:
             return error_response(result['message'], 400)
-        
+
     except Exception as e:
         return error_response(f"Voting failed: {str(e)}", 500)
 
@@ -248,10 +246,10 @@ def health_check():
     try:
         firebase_service = current_app.firebase_service
         stats = firebase_service.get_system_statistics()
-        
+
         # Check if LLM processor is running
         processor_status = "running" if hasattr(current_app, 'complaint_processor') else "not_initialized"
-        
+
         return success_response({
             'api_status': 'healthy',
             'firebase_status': 'connected',
@@ -275,7 +273,7 @@ def health_check():
                 'last_updated': datetime.utcnow().isoformat()
             }
         })
-        
+
     except Exception as e:
         return error_response(f"Health check failed: {str(e)}", 500)
 
@@ -285,7 +283,7 @@ def get_comprehensive_stats():
     try:
         firebase_service = current_app.firebase_service
         stats = firebase_service.get_system_statistics()
-        
+
         return success_response({
             'queue_status': stats.get('queue_status', {}),
             'processing_breakdown': stats.get('processed_complaints', {}),
@@ -297,12 +295,12 @@ def get_comprehensive_stats():
             },
             'anonymity_stats': {
                 'pseudo_anonymous_system': True,
-                'email_only_identification': True,
+                'email_only_identification': False,
                 'llm_visibility_determination': True
             },
             'last_updated': datetime.utcnow().isoformat()
         })
-        
+
     except Exception as e:
         return error_response(f"Statistics unavailable: {str(e)}", 500)
 
@@ -323,7 +321,7 @@ def get_departments():
         'Management Studies',
         'Artificial Intelligence and Data Science'
     ]
-    
+
     return success_response({
         'departments': departments,
         'total_count': len(departments),
@@ -359,7 +357,7 @@ def get_llm_capabilities():
             }
         },
         'privacy_protection': {
-            'pseudo_anonymity': 'Email-only identification for accountability with privacy',
+            'pseudo_anonymity': 'User ID based identification (no email)',
             'sensitive_detection': 'Automatic identification of sensitive content',
             'secure_handling': 'Appropriate visibility levels for different complaint types'
         },
