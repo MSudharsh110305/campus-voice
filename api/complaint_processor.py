@@ -78,6 +78,42 @@ class IntelligentComplaintProcessor:
             print(f"   ✍️ Rephrased: {llm_result['rephrased_complaint'][:60]}...")
             print(f"   🔓 LLM Visibility: {llm_result['visibility']}")
             print(f"   📂 LLM Category: {llm_result['category']}")
+            print(f"   🧠 Model used: {llm_result.get('model_used', 'N/A')}")
+
+            # Fail-fast: needs clarification (do not route/save as normal)
+            if llm_result.get('needs_clarification'):
+                msg = (
+                    "Needs more information: Please specify the exact location/ownership "
+                    "(Hostel name/room, Block/Classroom, or Department/Lab/Equipment) to route correctly."
+                )
+                print(f"❓ {msg}")
+                # Option A: return False and let API layer reply 422 with msg to the user
+                return False
+
+                # Option B: Save a 'needs_info' record and skip routing/voting (uncomment to use)
+                # ni_result = LLMProcessingResult(
+                #     complaint_id=complaint_id,
+                #     original_complaint=queued_complaint.original_complaint,
+                #     rephrased_complaint=llm_result['rephrased_complaint'],
+                #     llm_determined_visibility='private',
+                #     classification='infrastructure',
+                #     subcategory=None,
+                #     final_authority='Pending Clarification',
+                #     routing_path=['❓ Awaiting clarification: location/ownership unspecified'],
+                #     priority_level='Low',
+                #     confidence='Low',
+                #     reasoning='Insufficient information to determine owner',
+                #     processing_time=time.time() - start_time,
+                #     model_used=llm_result.get('model_used', 'intelligent_llm_engine'),
+                #     created_at=queued_complaint.created_at,
+                #     processed_at=datetime.now(timezone.utc),
+                #     user_id=queued_complaint.user_id,
+                #     user_department=queued_complaint.user_department,
+                #     gender=queued_complaint.gender,
+                #     user_residence=queued_complaint.user_residence
+                # )
+                # self.firebase_service.save_llm_processed_complaint(ni_result)
+                # return True
 
             # Extract routing hints
             mentioned_department = llm_result.get('mentioned_department')
@@ -90,9 +126,10 @@ class IntelligentComplaintProcessor:
                 user_department=queued_complaint.user_department,
                 needs_bypass=needs_bypass,
                 mentioned_authority=mentioned_authority,
-                # Pass complaint text and mentioned department so mapper can handle lab/AO rules and cross-dept
+                # Pass complaint text and mentioned department so mapper can handle lab/AO rules, cross-dept, and disciplinary
                 mentioned_department=mentioned_department,
-                complaint_text=queued_complaint.original_complaint
+                complaint_text=queued_complaint.original_complaint,
+                user_residence=queued_complaint.user_residence
             )
 
             print(f"   🎯 Authority: {routing['final_authority']}")
@@ -161,9 +198,9 @@ class IntelligentComplaintProcessor:
         error_result = LLMProcessingResult(
             complaint_id=queued_complaint.complaint_id,
             original_complaint=queued_complaint.original_complaint,
-            rephrased_complaint=queued_complaint.original_complaint,  # Use original
-            llm_determined_visibility='public',  # Safe default
-            classification='infrastructure',     # Safe default
+            rephrased_complaint=queued_complaint.original_complaint,
+            llm_determined_visibility='public',
+            classification='infrastructure',
             subcategory=None,
             final_authority='Administrative Officer (AO)',
             routing_path=['⚠️ Error Processing - Routed to Admin'],
@@ -191,13 +228,10 @@ class IntelligentComplaintProcessor:
 
         while self.is_running:
             try:
-                # Get next raw complaint from queue
                 queued_complaint = self.firebase_service.get_next_queued_complaint()
 
                 if queued_complaint:
                     consecutive_empty_checks = 0
-
-                    # Process with full LLM intelligence
                     success = self.process_queued_complaint(queued_complaint)
 
                     if success:
@@ -205,20 +239,19 @@ class IntelligentComplaintProcessor:
                     else:
                         print("⚠️ Processing completed with errors")
 
-                    print()  # spacing
+                    print()
                 else:
                     consecutive_empty_checks += 1
-                    if consecutive_empty_checks % 20 == 1:  # Print every 20 empty checks
+                    if consecutive_empty_checks % 20 == 1:
                         print("⏳ No raw complaints in queue, waiting for submissions...")
-
-                    time.sleep(3)  # Wait 3 seconds before next check
+                    time.sleep(3)
 
             except KeyboardInterrupt:
                 print("\n⏹️ Processing loop stopped by user")
                 break
             except Exception as e:
                 print(f"\n❌ Error in processing loop: {str(e)}")
-                time.sleep(5)  # Wait before retrying on error
+                time.sleep(5)
 
     def start_background_processing(self):
         """Start processing in background thread"""
@@ -247,7 +280,6 @@ class IntelligentComplaintProcessor:
             print("\n🛑 Processor stopped by user")
         finally:
             self.is_running = False
-
 
 # =============== STANDALONE EXECUTION ===============
 if __name__ == '__main__':

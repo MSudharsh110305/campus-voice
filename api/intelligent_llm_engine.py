@@ -1,5 +1,5 @@
 import json
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 import requests
 import re
 import time
@@ -11,12 +11,15 @@ class IntelligentLLMEngine:
         self.config = config
         self.ollama_host = getattr(config, 'ollama_host', 'http://localhost:11434')
         self.ollama_timeout = getattr(config, 'ollama_timeout', 30)
+        # Make model configurable; default to gemma3:latest
+        self.ollama_model = getattr(config, 'ollama_model', 'gemma3:latest')
 
         # Test Ollama availability
         self.ollama_available = self._test_ollama_connection()
 
         print("🧠 Intelligent LLM Engine initialized")
         print(f"   🔗 Ollama: {'✅ Available' if self.ollama_available else '❌ Using rule-based fallbacks'}")
+        print(f"   🧠 Default model: {self.ollama_model}")
 
         # Enhanced keyword sets for intelligent processing
         self._initialize_keyword_sets()
@@ -24,12 +27,13 @@ class IntelligentLLMEngine:
     def _initialize_keyword_sets(self):
         """Initialize comprehensive keyword sets for intelligent classification and routing hints"""
 
-        # Visibility determination keywords
         self.confidential_keywords = [
-            'harassment', 'abuse', 'discrimination', 'inappropriate behavior',
-            'sexual harassment', 'bullying', 'misconduct', 'assault', 'threat',
-            'ragging', 'mental health', 'depression', 'anxiety', 'personal issue',
-            'confidential', 'sensitive', 'private matter', "don't tell anyone"
+            'harassment', 'harassed', 'harass', 'sexual harassment', 'sexual',
+            'abuse', 'abused', 'assault', 'molest', 'molestation',
+            'discrimination', 'ragging', 'threat', 'stalking',
+            'inappropriate behavior', 'misconduct',
+            'mental health', 'depression', 'anxiety',
+            'confidential', 'sensitive', "private matter", "don't tell anyone"
         ]
 
         self.private_keywords = [
@@ -37,7 +41,6 @@ class IntelligentLLMEngine:
             'between us', 'personally', 'individual case', 'just for me'
         ]
 
-        # Category classification keywords
         self.category_keywords = {
             'hostel': [
                 'hostel', 'mess', 'room', 'warden', 'deputy warden', 'food', 'wifi',
@@ -50,25 +53,33 @@ class IntelligentLLMEngine:
                 'syllabus', 'curriculum', 'lab', 'laboratory', 'assignment', 'project',
                 'marks', 'grades', 'teaching', 'subject', 'course', 'semester', 'practical',
                 'theory', 'attendance', 'tutorial', 'evaluation', 'assessment', 'timetable',
-                'schedule', 'internal', 'external', 'viva', 'presentation'
+                'schedule', 'internal', 'external', 'viva', 'presentation', 'classmate', 'peer', 'student'
             ],
             'infrastructure': [
                 'building', 'classroom', 'library', 'auditorium', 'lift', 'elevator',
                 'parking', 'ground', 'playground', 'toilet', 'washroom', 'corridor',
                 'staircase', 'roof', 'gate', 'security', 'maintenance', 'repair',
                 'construction', 'facility', 'equipment', 'furniture', 'lighting',
-                'ventilation', 'cleanliness', 'water supply', 'electricity supply'
+                'ventilation', 'cleanliness', 'water supply', 'electricity supply', 'plumbing'
             ]
         }
 
-        # Building keywords for infrastructure classification
         self.building_keywords = [
-            'library', 'main building', 'admin block', 'ece block', 'cse block',
-            'it block', 'mechanical block', 'civil block', 'auditorium', 'seminar hall',
-            'conference hall', 'workshop', 'canteen building', 'sports complex'
+            'block a', 'block b', 'block c', 'main building', 'admin block',
+            'ece block', 'cse block', 'it block', 'mechanical block', 'civil block',
+            'library', 'auditorium', 'seminar hall', 'conference hall', 'workshop',
+            'canteen building', 'sports complex'
         ]
 
-        # Department aliases for detection in free text
+        self.context_facility_keywords = [
+            'drinking water', 'water', 'bathroom', 'toilet', 'electricity', 'power', 'plumbing'
+        ]
+
+        self.department_asset_keywords = [
+            '3d printer', 'oscilloscope', 'cnc', 'lathe', 'soldering', 'department lab', 'dept lab', 'project lab',
+            'instrument', 'instruments', 'equipment', 'laboratory', 'lab'
+        ]
+
         self.dept_alias = {
             "cse": "Computer Science & Engineering",
             "ece": "Electronics & Communication Engineering",
@@ -87,8 +98,17 @@ class IntelligentLLMEngine:
             "management": "Management Studies",
         }
 
+        self.block_to_dept = {
+            'mechanical block': 'Mechanical Engineering',
+            'ece block': 'Electronics & Communication Engineering',
+            'cse block': 'Computer Science & Engineering',
+            'it block': 'Information Technology',
+            'civil block': 'Civil Engineering'
+        }
+
+        self.hostel_cues = ['hostel', 'warden', 'deputy warden', 'mess', 'curfew', 'room ']
+
     def _test_ollama_connection(self) -> bool:
-        """Test Ollama connection and available models"""
         try:
             resp = requests.get(f"{self.ollama_host}/api/tags", timeout=5)
             if resp.status_code == 200:
@@ -102,24 +122,46 @@ class IntelligentLLMEngine:
             return False
 
     def process_complaint_complete(self, complaint: str, user_context: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Complete LLM processing: rephrasing, visibility determination, and classification
-        Also emits:
-        - mentioned_department: if a different department is referenced
-        - needs_bypass + mentioned_authority: if hostel authority is targeted
-        """
         print("🧠 Starting intelligent LLM processing...")
         start_time = time.time()
 
         try:
             if self.ollama_available:
+                print(f"   🧠 Model in use: {self.ollama_model}")
                 result = self._ollama_complete_processing(complaint, user_context)
             else:
                 result = self._rule_based_complete_processing(complaint, user_context)
 
-            # Post-process to add hints for routing
+            # Routing hints
             hints = self._extract_routing_hints(complaint, user_context)
             result.update(hints)
+
+            # Preserve referenced department/block in rephrase when present
+            result['rephrased_complaint'] = self._preserve_reference_in_rephrase(
+                original=complaint, rephrased=result.get('rephrased_complaint', ''), hints=hints
+            )
+
+            # Category override for context + sensitive
+            result['category'] = self._context_aware_category(
+                complaint, user_context, preferred=result.get('category')
+            )
+
+            # Sensitive handling
+            if self._has_confidential_content(complaint):
+                result['visibility'] = 'confidential'
+                if self._is_refusal_or_empty(result.get('rephrased_complaint', '')):
+                    result['rephrased_complaint'] = self._default_sensitive_text(user_context)
+
+            # Insufficient info detection
+            if self._is_location_unclear(complaint):
+                result['needs_clarification'] = True
+                result['visibility'] = 'private'
+                result['category'] = 'infrastructure'
+                result['confidence'] = 'Low'
+                result['rephrased_complaint'] = (
+                    "Please include the exact location/ownership (Hostel name/room, Block/Classroom, or Department/Lab/Equipment) "
+                    "so this can be routed correctly."
+                )
 
             result['processing_time'] = time.time() - start_time
             print(f"✅ LLM processing completed in {result['processing_time']:.2f}s")
@@ -129,17 +171,32 @@ class IntelligentLLMEngine:
             print(f"❌ LLM processing failed: {e}")
             rb = self._rule_based_complete_processing(complaint, user_context)
             rb.update(self._extract_routing_hints(complaint, user_context))
+            rb['rephrased_complaint'] = self._preserve_reference_in_rephrase(
+                original=complaint, rephrased=rb.get('rephrased_complaint', ''), hints=rb
+            )
+            rb['category'] = self._context_aware_category(complaint, user_context, preferred=rb.get('category'))
+            if self._has_confidential_content(complaint):
+                rb['visibility'] = 'confidential'
+                if self._is_refusal_or_empty(rb.get('rephrased_complaint', '')):
+                    rb['rephrased_complaint'] = self._default_sensitive_text(user_context)
+            if self._is_location_unclear(complaint):
+                rb['needs_clarification'] = True
+                rb['visibility'] = 'private'
+                rb['category'] = 'infrastructure'
+                rb['confidence'] = 'Low'
+                rb['rephrased_complaint'] = (
+                    "Please include the exact location/ownership (Hostel name/room, Block/Classroom, or Department/Lab/Equipment) "
+                    "so this can be routed correctly."
+                )
             rb['processing_time'] = time.time() - start_time
             return rb
 
-    # ------------------------ Ollama path ------------------------
-
     def _ollama_complete_processing(self, complaint: str, user_context: Dict[str, Any]) -> Dict[str, Any]:
-        """Complete processing using Ollama LLM"""
         system_prompt = """You are Campus Voice AI, an intelligent complaint processing system.
 
-Use the provided user context to rephrase and judge visibility appropriately. 
+Use the provided user context to rephrase and judge visibility appropriately.
 When rephrasing, maintain a professional tone and avoid gendered wording unless relevant.
+Never refuse to rephrase sensitive content; if it’s sensitive, write a neutral one-line summary suitable for confidential handling.
 
 User context schema:
 - user_id: identifier for accountability
@@ -148,20 +205,21 @@ User context schema:
 - residence: hostel name or 'Day Scholar'
 
 Tasks:
-1) REPHRASE the complaint professionally (use gender/residence/department only if relevant)
+1) REPHRASE the complaint professionally (one to two sentences; never refuse)
 2) DETERMINE visibility: public/private/confidential (see rules)
 3) CLASSIFY category: hostel/academic/infrastructure (see rules)
-4) PROVIDE reasoning
+4) PROVIDE reasoning (brief and specific)
 
 Rules:
-- Mention of harassment/abuse/discrimination → confidential
-- Highly personal individual case → private
-- General issues affecting many → public
-- Buildings/facilities → infrastructure
-- Teaching/faculty/labs/equipment within a department → academic
-- Hostel/mess, warden chain → hostel
+- Mention of harassment/abuse/sexual misconduct/discrimination → visibility must be 'confidential'
+- Highly personal individual case → 'private'
+- General issues affecting many → 'public'
+- Buildings/blocks/facilities explicitly named → 'infrastructure'
+- Hostel basic facilities (water, bathroom, electricity, plumbing) where the text mentions hostel cues → 'hostel'
+- Teaching/faculty/labs/equipment within a department → 'academic'
+- Classroom is always a facility-level issue (infrastructure)
 
-Output ONLY valid JSON:
+Respond ONLY with valid JSON:
 {
   "rephrased_complaint": "...",
   "visibility": "public|private|confidential",
@@ -182,39 +240,44 @@ User Context:
 Process this complaint:"""
 
         payload = {
-            "model": "llama3:instruct",
+            "model": self.ollama_model,
             "prompt": prompt,
             "stream": False,
-            "options": {"temperature": 0.2, "top_p": 0.9, "max_tokens": 500}
+            "options": {"temperature": 0.15, "top_p": 0.9, "max_tokens": 480}
         }
 
         resp = requests.post(f"{self.ollama_host}/api/generate", json=payload, timeout=self.ollama_timeout)
         resp.raise_for_status()
         response_text = (resp.json().get('response') or "").strip()
 
-        # Try strict JSON extraction
         json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
         if json_match:
             try:
                 llm_result = json.loads(json_match.group())
-                # Validate and normalize
                 if llm_result.get('visibility') not in ['public', 'private', 'confidential']:
                     llm_result['visibility'] = 'public'
                 if llm_result.get('category') not in ['hostel', 'academic', 'infrastructure']:
                     llm_result['category'] = self._rule_based_classify_category(complaint)
-                llm_result['model_used'] = 'llama3:instruct'
-                print("   🤖 Ollama processing successful")
+                if self._has_confidential_content(complaint):
+                    llm_result['visibility'] = 'confidential'
+                    if self._is_refusal_or_empty(llm_result.get('rephrased_complaint', '')):
+                        llm_result['rephrased_complaint'] = self._default_sensitive_text(user_context)
+
+                llm_result['model_used'] = self.ollama_model
+                print(f"   🤖 Ollama processing successful with model: {self.ollama_model}")
                 return llm_result
             except json.JSONDecodeError:
                 pass
 
-        # Fallback: parse from text
-        return self._parse_llm_text_response(response_text, complaint, user_context)
-
-    # ------------------------ Parsing and Rule-based ------------------------
+        parsed = self._parse_llm_text_response(response_text, complaint, user_context)
+        if self._has_confidential_content(complaint):
+            parsed['visibility'] = 'confidential'
+            if self._is_refusal_or_empty(parsed.get('rephrased_complaint', '')):
+                parsed['rephrased_complaint'] = self._default_sensitive_text(user_context)
+        parsed['model_used'] = self.ollama_model
+        return parsed
 
     def _parse_llm_text_response(self, response_text: str, original_complaint: str, user_context: Dict[str, Any]) -> Dict[str, Any]:
-        """Parse LLM response when JSON extraction fails"""
         lines = response_text.split('\n')
         rephrased = ""
         for line in lines:
@@ -228,7 +291,7 @@ Process this complaint:"""
             rephrased = self._rule_based_rephrase(original_complaint, user_context)
 
         visibility = 'public'
-        category = 'infrastructure'
+        category = self._rule_based_classify_category(original_complaint)
         rl = response_text.lower()
         if 'confidential' in rl:
             visibility = 'confidential'
@@ -236,7 +299,7 @@ Process this complaint:"""
             visibility = 'private'
         if 'hostel' in rl:
             category = 'hostel'
-        elif 'academic' in rl or 'professor' in rl or 'lab' in rl:
+        elif any(k in rl for k in ['academic', 'professor', 'lab', 'class']):
             category = 'academic'
 
         return {
@@ -245,18 +308,20 @@ Process this complaint:"""
             'category': category,
             'confidence': 'Medium',
             'reasoning': 'Parsed from LLM text response',
-            'model_used': 'llama3:instruct'
+            'model_used': self.ollama_model
         }
 
     def _rule_based_complete_processing(self, complaint: str, user_context: Dict[str, Any]) -> Dict[str, Any]:
-        """Complete rule-based processing when Ollama is unavailable"""
         print("   🧠 Using intelligent rule-based processing...")
         visibility = self._determine_visibility_rules(complaint)
-        category = self._rule_based_classify_category(complaint)
+        category = self._context_aware_category(complaint, user_context, preferred=self._rule_based_classify_category(complaint))
         rephrased = self._rule_based_rephrase(complaint, user_context)
-        print("   📝 Rule-based rephrasing applied")
-        print(f"   🔓 Visibility: {visibility}")
-        print(f"   📂 Category: {category}")
+        if self._has_confidential_content(complaint):
+            visibility = 'confidential'
+            if self._is_refusal_or_empty(rephrased):
+                rephrased = self._default_sensitive_text(user_context)
+
+        print(f"   🔧 Rule-based engine category: {category}")
         return {
             'rephrased_complaint': rephrased,
             'visibility': visibility,
@@ -267,11 +332,9 @@ Process this complaint:"""
         }
 
     def _determine_visibility_rules(self, complaint: str) -> str:
-        """Intelligent rule-based visibility determination"""
         txt = complaint.lower()
-        for kw in self.confidential_keywords:
-            if kw in txt:
-                return 'confidential'
+        if self._has_confidential_content(txt):
+            return 'confidential'
         for kw in self.private_keywords:
             if kw in txt:
                 return 'private'
@@ -280,20 +343,23 @@ Process this complaint:"""
             return 'private'
         return 'public'
 
+    def _has_confidential_content(self, complaint: str) -> bool:
+        txt = complaint.lower()
+        return any(kw in txt for kw in self.confidential_keywords)
+
     def _rule_based_classify_category(self, complaint: str) -> str:
-        """Intelligent rule-based category classification"""
         txt = complaint.lower()
         for b in self.building_keywords:
-            if b.lower() in txt:
+            if b in txt:
                 return 'infrastructure'
         scores = {k: 0 for k in self.category_keywords}
         for cat, kws in self.category_keywords.items():
             for kw in kws:
-                if kw.lower() in txt:
+                if kw in txt:
                     scores[cat] += 1
         if any(w in txt for w in ['warden', 'deputy warden']):
             scores['hostel'] += 5
-        if any(w in txt for w in ['professor', 'faculty', 'teaching', 'lab', 'laboratory']):
+        if any(w in txt for w in ['professor', 'faculty', 'teaching', 'lab', 'laboratory', 'classmate', 'peer', 'student']):
             scores['academic'] += 5
         if any(w in txt for w in ['building', 'facility', 'maintenance']):
             scores['infrastructure'] += 3
@@ -306,11 +372,116 @@ Process this complaint:"""
             return 'infrastructure'
         return max_cat
 
+    def _context_aware_category(self, complaint: str, user_context: Dict[str, Any], preferred: Optional[str]) -> str:
+        """
+        Context rules:
+        - Department asset (lab/equipment) → academic, even if a block is named
+        - Classroom is always infrastructure (AO)
+        - Explicit building/block (without asset) → infrastructure (AO)
+        - Facilities (water/bathroom/electricity/plumbing):
+            - Only 'hostel' when text includes hostel cues; residence alone is not sufficient
+            - Otherwise infrastructure (AO)
+        - Sensitive content → academic (disciplinary)
+        """
+        txt = complaint.lower()
+        residence = (user_context.get('residence') or '').lower()
+
+        if self._has_confidential_content(txt):
+            return 'academic'
+
+        if 'classroom' in txt or 'class room' in txt:
+            return 'infrastructure'
+
+        if any(k in txt for k in self.department_asset_keywords):
+            target = self._detect_department_from_text(txt) or self._infer_department_from_block(txt)
+            if target:
+                return 'academic'
+
+        if any(b in txt for b in self.building_keywords):
+            return 'infrastructure'
+
+        if any(k in txt for k in self.context_facility_keywords):
+            if any(h in txt for h in self.hostel_cues):
+                return 'hostel'
+            return 'infrastructure'
+
+        return preferred or self._rule_based_classify_category(complaint)
+
+    def _default_sensitive_text(self, user_context: Dict[str, Any]) -> str:
+        uid = (user_context.get('user_id') or '').strip()
+        who = f"The user {uid}" if uid else "The reporter"
+        return f"{who} needs immediate confidential assistance from the Student Council / Disciplinary Committee regarding a sensitive incident."
+
+    def _is_refusal_or_empty(self, text: str) -> bool:
+        t = (text or '').strip().lower()
+        if len(t) < 10:
+            return True
+        refusal_phrases = [
+            "cannot rephrase", "can't rephrase", "won't rephrase", "unable to rephrase",
+            "cannot assist", "can't assist", "not allowed", "policy", "refuse to", "i cannot"
+        ]
+        return any(p in t for p in refusal_phrases)
+
+    def _detect_department_from_text(self, txt: str) -> Optional[str]:
+        for alias, full in self.dept_alias.items():
+            if re.search(rf'\b{re.escape(alias)}\b', txt) or re.search(rf'\b{re.escape(full.lower())}\b', txt):
+                return full
+        return None
+
+    def _infer_department_from_block(self, txt: str) -> Optional[str]:
+        for block_phrase, dept in self.block_to_dept.items():
+            if block_phrase in txt:
+                return dept
+        return None
+
+    def _is_location_unclear(self, complaint: str) -> bool:
+        """
+        True if facilities keywords are present but there is no clear owner:
+        - no hostel cues, no building/block, no department mention, and no asset/lab terms
+        """
+        txt = complaint.lower()
+        if not any(k in txt for k in self.context_facility_keywords):
+            return False
+        if any(h in txt for h in self.hostel_cues):
+            return False
+        if any(b in txt for b in self.building_keywords):
+            return False
+        if self._detect_department_from_text(txt):
+            return False
+        if any(k in txt for k in self.department_asset_keywords):
+            return False
+        return True
+
+    def _preserve_reference_in_rephrase(self, original: str, rephrased: str, hints: Dict[str, Any]) -> str:
+        """
+        Ensure the rephrased text keeps the referenced department or block if present,
+        avoiding substitution with the user's department.
+        """
+        if not rephrased:
+            return rephrased
+        txt = original.lower()
+        mentioned_dept = hints.get('mentioned_department')
+        block_hit = None
+        for b in self.building_keywords:
+            if b in txt:
+                block_hit = b
+                break
+        prefix = ""
+        if mentioned_dept:
+            prefix = f"This complaint concerns the facilities in {mentioned_dept}. "
+        elif block_hit:
+            prefix = f"This complaint concerns the facilities in {block_hit}. "
+        if prefix and not rephrased.lower().startswith(prefix.lower()):
+            return prefix + rephrased
+        return rephrased
+
     def _rule_based_rephrase(self, complaint: str, user_context: Dict[str, Any]) -> str:
-        """Professional rephrasing with context-aware opening"""
+        if self._has_confidential_content(complaint):
+            return self._default_sensitive_text(user_context)
+
         rephrased = complaint.strip()
-        if not rephrased.startswith(("I would like to", "We would like to", "This is to", "I am writing")):
-            cat = self._rule_based_classify_category(complaint)
+        if not rephrased.startswith(("I would like to", "We would like to", "This is to", "I am writing", "I am reporting")):
+            cat = self._context_aware_category(complaint, user_context, preferred=self._rule_based_classify_category(complaint))
             if cat == 'hostel':
                 rephrased = f"I would like to bring to your attention a hostel-related concern. {rephrased}"
             elif cat == 'academic':
@@ -341,35 +512,17 @@ Process this complaint:"""
             rephrased += " I request your prompt attention and appropriate action to resolve this matter."
         return rephrased
 
-    # ------------------------ Routing hints ------------------------
-
     def _extract_routing_hints(self, complaint: str, user_context: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Derive:
-        - mentioned_department: department referenced in the text (may differ from user's department)
-        - needs_bypass + mentioned_authority: if the complaint targets hostel authorities
-        """
         txt = complaint.lower()
-        mentioned_dept = None
-
-        # Detect explicit department mentions via aliases or full names
-        for alias, full in self.dept_alias.items():
-            if re.search(rf'\b{re.escape(alias)}\b', txt) or re.search(rf'\b{re.escape(full.lower())}\b', txt):
-                mentioned_dept = full
-                break
-
+        mentioned_dept = self._detect_department_from_text(txt)
         needs_bypass = False
         mentioned_authority = "none"
-        # Heuristics for authority targeting
-        if 'warden' in txt:
-            # If specifically says "warden", bypass warden to deputy
-            needs_bypass = True
-            mentioned_authority = "warden"
         if 'deputy warden' in txt:
-            # If targets deputy warden, bypass both to senior deputy warden
             needs_bypass = True
             mentioned_authority = "deputy_warden"
-
+        elif 'warden' in txt:
+            needs_bypass = True
+            mentioned_authority = "warden"
         return {
             'mentioned_department': mentioned_dept,
             'needs_bypass': needs_bypass,
