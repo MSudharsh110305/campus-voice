@@ -1,7 +1,25 @@
+"""
+Complaint Processor - CampusVoice Complaint System
+Version: 4.0.0 - Production Ready
+
+Simple orchestration layer for complaint processing.
+Coordinates LLM engine, Firebase service, and image uploads.
+
+Changes from v3.0:
+- ✂️ REMOVED all queue-based code
+- ✂️ REMOVED background thread processing
+- ✅ Direct synchronous processing
+- ✅ Simple orchestration (LLM engine does the heavy lifting)
+- ✅ Image upload to Firebase Storage
+- ✅ Returns Complaint objects
+- ✅ Production-ready error handling
+"""
+
 import os
 import sys
 import time
-import threading
+import uuid
+from typing import Optional, List, Tuple, Any
 from datetime import datetime, timezone
 
 # Add project root to path
@@ -9,297 +27,418 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# Add core directory to path
-sys.path.insert(0, os.path.join(project_root, 'core'))
-
 # Import core modules
-from config import Config
-from authority_mapper import AuthorityMapper
-from priority_scorer import PriorityScorer
-from intelligent_llm_engine import IntelligentLLMEngine
+from core.config import get_config
 
 # Import API modules
+from api.intelligent_llm_engine import IntelligentLLMEngine
 from api.firebase_service import FirebaseService
-from api.models import LLMProcessingResult
+from api.models import ComplaintSubmission, Complaint
 
-class IntelligentComplaintProcessor:
-    """LLM-driven complaint processor with intelligent rephrasing and visibility detection (text-only)"""
+
+class ComplaintProcessor:
+    """
+    Simple orchestration layer for complaint processing.
+    
+    Coordinates:
+    - LLM engine (categorization, routing, priority)
+    - Firebase service (storage)
+    - Image uploads
+    """
 
     def __init__(self):
-        print("🤖 Initializing Intelligent Complaint Processor...")
+        """Initialize the complaint processor."""
+        print("🤖 Initializing Complaint Processor...")
+        
         try:
+            # Get configuration
+            self.config = get_config()
+            
             # Initialize services
-            self.config = Config()
             self.firebase_service = FirebaseService()
-            self.llm_engine = IntelligentLLMEngine(self.config)
-            self.authority_mapper = AuthorityMapper(self.config)
-            self.priority_scorer = PriorityScorer(self.config)
-
-            # Processing control
-            self.is_running = False
-            self.processing_thread = None
-
-            print("✅ Intelligent Complaint Processor ready")
-
+            self.llm_engine = IntelligentLLMEngine()
+            
+            print("✅ Complaint Processor ready")
+            print(f"   🚀 LLM: {'Groq' if self.llm_engine.groq_available else 'Rule-based'}")
+            print(f"   🔥 Firebase: Connected")
+            
         except Exception as e:
             print(f"❌ Failed to initialize processor: {e}")
-            import traceback
-            traceback.print_exc()
             raise
 
-    def process_queued_complaint(self, queued_complaint) -> bool:
-        """Process raw complaint with complete LLM intelligence"""
-        complaint_id = queued_complaint.complaint_id
-
+    def process_complaint(
+        self,
+        submission: ComplaintSubmission,
+        image_files: Optional[List[Any]] = None,
+        image_filenames: Optional[List[str]] = None
+    ) -> Tuple[bool, str, Optional[Complaint]]:
+        """
+        Process a complaint submission.
+        
+        This is the main entry point for complaint processing.
+        
+        Args:
+            submission: ComplaintSubmission object
+            image_files: Optional list of image files (file objects or bytes)
+            image_filenames: Optional list of image filenames
+            
+        Returns:
+            Tuple of (success: bool, message: str, complaint: Optional[Complaint])
+        """
+        complaint_id = None
+        
         try:
-            print(f"\n🔄 Processing raw complaint: {complaint_id}")
-            print(f"   📝 Original: {queued_complaint.original_complaint[:80]}...")
-            print(f"   👤 User ID: {queued_complaint.user_id}")
-            print(f"   🏫 Department: {queued_complaint.user_department}")
-            print(f"   🏠 Residence: {queued_complaint.user_residence}")
-            print(f"   ⚧ Gender: {queued_complaint.gender}")
-
+            # Generate unique complaint ID
+            complaint_id = self._generate_complaint_id()
+            
+            print(f"\n🔄 Processing complaint: {complaint_id}")
+            print(f"   📝 Text: {submission.complaint_text[:80]}...")
+            print(f"   👤 Roll: {submission.roll_number}")
+            print(f"   🏫 Dept: {submission.department}")
+            print(f"   🏠 Residence: {submission.residence}")
+            print(f"   ⚧ Gender: {submission.gender}")
+            print(f"   👁️ Public: {submission.is_public}")
+            
+            if image_files:
+                print(f"   🖼️ Images: {len(image_files)} attached")
+            
             start_time = time.time()
-
-            # =============== STEP 1: LLM Complete Processing ===============
-            user_context = {
-                'user_id': queued_complaint.user_id,
-                'gender': queued_complaint.gender,
-                'department': queued_complaint.user_department,
-                'residence': queued_complaint.user_residence,
-            }
-
-            # LLM processes everything: rephrasing, visibility, classification, plus routing hints
-            llm_result = self.llm_engine.process_complaint_complete(
-                queued_complaint.original_complaint,
-                user_context
-            )
-
-            print(f"   ✍️ Rephrased: {llm_result['rephrased_complaint'][:60]}...")
-            print(f"   🔓 LLM Visibility: {llm_result['visibility']}")
-            print(f"   📂 LLM Category: {llm_result['category']}")
-            print(f"   🧠 Model used: {llm_result.get('model_used', 'N/A')}")
-
-            # Fail-fast: needs clarification (do not route/save as normal)
-            if llm_result.get('needs_clarification'):
-                msg = (
-                    "Needs more information: Please specify the exact location/ownership "
-                    "(Hostel name/room, Block/Classroom, or Department/Lab/Equipment) to route correctly."
+            
+            # =================== STEP 1: LLM PROCESSING ===================
+            print("   🧠 Step 1: LLM Processing...")
+            
+            # LLM engine does everything:
+            # - Categorization
+            # - Rephrasing
+            # - Visibility determination
+            # - Authority routing (via AuthorityMapper)
+            # - Priority scoring (via PriorityScorer)
+            # - Image detection
+            complaint = self.llm_engine.process_complaint(submission, complaint_id)
+            
+            print(f"   ✅ LLM Processing complete")
+            print(f"      ✍️  Rephrased: {complaint.rephrased_text[:60]}...")
+            print(f"      📂 Category: {complaint.category}")
+            print(f"      🔓 Visibility: {complaint.visibility_type}")
+            print(f"      🎯 Authority: {complaint.assigned_authority}")
+            print(f"      ⚡ Priority: {complaint.priority_level} ({complaint.priority_score:.1f})")
+            print(f"      🧠 Model: {complaint.llm_model_used}")
+            
+            # =================== STEP 2: SAVE TO FIREBASE ===================
+            print("   💾 Step 2: Saving to Firebase...")
+            
+            success = self.firebase_service.create_complaint(complaint)
+            
+            if not success:
+                return (
+                    False,
+                    "Failed to save complaint to database",
+                    None
                 )
-                print(f"❓ {msg}")
-                # Option A: return False and let API layer reply 422 with msg to the user
-                return False
-
-                # Option B: Save a 'needs_info' record and skip routing/voting (uncomment to use)
-                # ni_result = LLMProcessingResult(
-                #     complaint_id=complaint_id,
-                #     original_complaint=queued_complaint.original_complaint,
-                #     rephrased_complaint=llm_result['rephrased_complaint'],
-                #     llm_determined_visibility='private',
-                #     classification='infrastructure',
-                #     subcategory=None,
-                #     final_authority='Pending Clarification',
-                #     routing_path=['❓ Awaiting clarification: location/ownership unspecified'],
-                #     priority_level='Low',
-                #     confidence='Low',
-                #     reasoning='Insufficient information to determine owner',
-                #     processing_time=time.time() - start_time,
-                #     model_used=llm_result.get('model_used', 'intelligent_llm_engine'),
-                #     created_at=queued_complaint.created_at,
-                #     processed_at=datetime.now(timezone.utc),
-                #     user_id=queued_complaint.user_id,
-                #     user_department=queued_complaint.user_department,
-                #     gender=queued_complaint.gender,
-                #     user_residence=queued_complaint.user_residence
-                # )
-                # self.firebase_service.save_llm_processed_complaint(ni_result)
-                # return True
-
-            # Extract routing hints
-            mentioned_department = llm_result.get('mentioned_department')
-            needs_bypass = bool(llm_result.get('needs_bypass', False))
-            mentioned_authority = llm_result.get('mentioned_authority', 'none')
-
-            # =============== STEP 2: Authority Mapping ===============
-            routing = self.authority_mapper.route_complaint(
-                category=llm_result['category'],
-                user_department=queued_complaint.user_department,
-                needs_bypass=needs_bypass,
-                mentioned_authority=mentioned_authority,
-                # Pass complaint text and mentioned department so mapper can handle lab/AO rules, cross-dept, and disciplinary
-                mentioned_department=mentioned_department,
-                complaint_text=queued_complaint.original_complaint,
-                user_residence=queued_complaint.user_residence
-            )
-
-            print(f"   🎯 Authority: {routing['final_authority']}")
-
-            # =============== STEP 3: Priority Scoring ===============
-            priority = self.priority_scorer.calculate_priority(
-                llm_result['rephrased_complaint'],
-                upvotes=0
-            )
-
-            print(f"   ⚡ Priority: {priority['level']}")
-
-            # =============== STEP 4: Create Processing Result ===============
-            processing_time = time.time() - start_time
-
-            llm_processing_result = LLMProcessingResult(
-                complaint_id=complaint_id,
-                original_complaint=queued_complaint.original_complaint,
-                rephrased_complaint=llm_result['rephrased_complaint'],
-                llm_determined_visibility=llm_result['visibility'],
-                classification=llm_result['category'],
-                # For academic: subcategory becomes the department the issue belongs to
-                subcategory=(mentioned_department or queued_complaint.user_department) if llm_result['category'] == 'academic' else None,
-                final_authority=routing['final_authority'],
-                routing_path=routing['routing_path'],
-                priority_level=priority['level'],
-                confidence=llm_result.get('confidence', 'Medium'),
-                reasoning=llm_result.get('reasoning', 'LLM-based processing'),
-                processing_time=processing_time,
-                model_used=llm_result.get('model_used', 'intelligent_llm_engine'),
-                created_at=queued_complaint.created_at,
-                processed_at=datetime.now(timezone.utc),
-                user_id=queued_complaint.user_id,
-                user_department=queued_complaint.user_department,
-                gender=queued_complaint.gender,
-                user_residence=queued_complaint.user_residence
-            )
-
-            # =============== STEP 5: Save and Clean Queue ===============
-            success = self.firebase_service.save_llm_processed_complaint(llm_processing_result)
-
-            if success:
-                print(f"✅ Successfully processed and saved: {complaint_id}")
-                print(f"   ⏱️ Processing time: {processing_time:.2f}s")
-                print(f"   🧠 Model: {llm_result.get('model_used', 'N/A')}")
-                return True
-            else:
-                print(f"❌ Failed to save processed complaint: {complaint_id}")
-                return False
-
-        except Exception as e:
-            print(f"❌ Error processing complaint {complaint_id}: {str(e)}")
-            import traceback
-            traceback.print_exc()
-
-            # Try to save error fallback (but still clean queue)
-            try:
-                self._save_error_fallback(queued_complaint, str(e))
-            except Exception as fallback_error:
-                print(f"💥 Critical: Could not save error fallback: {fallback_error}")
-
-            return False
-
-    def _save_error_fallback(self, queued_complaint, error_message: str):
-        """Save error fallback and clean queue"""
-        error_result = LLMProcessingResult(
-            complaint_id=queued_complaint.complaint_id,
-            original_complaint=queued_complaint.original_complaint,
-            rephrased_complaint=queued_complaint.original_complaint,
-            llm_determined_visibility='public',
-            classification='infrastructure',
-            subcategory=None,
-            final_authority='Administrative Officer (AO)',
-            routing_path=['⚠️ Error Processing - Routed to Admin'],
-            priority_level='Medium',
-            confidence='Low',
-            reasoning=f'Error fallback: {error_message}',
-            processing_time=0,
-            model_used='error_fallback',
-            created_at=queued_complaint.created_at,
-            processed_at=datetime.now(timezone.utc),
-            user_id=queued_complaint.user_id,
-            user_department=queued_complaint.user_department,
-            gender=queued_complaint.gender,
-            user_residence=queued_complaint.user_residence
-        )
-        self.firebase_service.save_llm_processed_complaint(error_result)
-        print(f"⚠️ Error fallback saved for: {queued_complaint.complaint_id}")
-
-    def processing_loop(self):
-        """Main processing loop - monitors queue continuously"""
-        print("🚀 Starting intelligent complaint processing loop...")
-        print("📡 Monitoring queue for raw complaints...")
-
-        consecutive_empty_checks = 0
-
-        while self.is_running:
-            try:
-                queued_complaint = self.firebase_service.get_next_queued_complaint()
-
-                if queued_complaint:
-                    consecutive_empty_checks = 0
-                    success = self.process_queued_complaint(queued_complaint)
-
-                    if success:
-                        print("🎉 Complaint fully processed and queue cleaned!")
-                    else:
-                        print("⚠️ Processing completed with errors")
-
-                    print()
+            
+            print(f"   ✅ Saved to Firebase")
+            
+            # =================== STEP 3: UPLOAD IMAGES ===================
+            if image_files and image_filenames:
+                print(f"   📸 Step 3: Uploading {len(image_files)} images...")
+                
+                image_urls = self._upload_images(
+                    complaint_id,
+                    image_files,
+                    image_filenames
+                )
+                
+                if image_urls:
+                    # Update complaint with image URLs
+                    complaint.image_urls = image_urls
+                    self.firebase_service.update_complaint(
+                        complaint_id,
+                        {'image_urls': image_urls}
+                    )
+                    print(f"   ✅ Uploaded {len(image_urls)} images")
                 else:
-                    consecutive_empty_checks += 1
-                    if consecutive_empty_checks % 20 == 1:
-                        print("⏳ No raw complaints in queue, waiting for submissions...")
-                    time.sleep(3)
+                    print(f"   ⚠️  Image upload failed (complaint still saved)")
+            else:
+                print("   ℹ️  Step 3: No images to upload")
+            
+            # =================== COMPLETE ===================
+            processing_time = time.time() - start_time
+            
+            print(f"   ✅ Processing complete in {processing_time:.2f}s")
+            print(f"   🆔 Complaint ID: {complaint_id}")
+            
+            return (
+                True,
+                f"Complaint processed successfully: {complaint_id}",
+                complaint
+            )
+            
+        except Exception as e:
+            print(f"   ❌ Error processing complaint: {str(e)}")
+            
+            # Try to save error fallback
+            try:
+                if complaint_id:
+                    self._save_error_fallback(submission, complaint_id, str(e))
+                    return (
+                        False,
+                        f"Processing error (fallback saved): {str(e)}",
+                        None
+                    )
+            except Exception as fallback_error:
+                print(f"   💥 Critical: Could not save error fallback: {fallback_error}")
+            
+            return (
+                False,
+                f"Processing error: {str(e)}",
+                None
+            )
 
-            except KeyboardInterrupt:
-                print("\n⏹️ Processing loop stopped by user")
-                break
-            except Exception as e:
-                print(f"\n❌ Error in processing loop: {str(e)}")
-                time.sleep(5)
+    def _generate_complaint_id(self) -> str:
+        """Generate unique complaint ID."""
+        timestamp = int(time.time() * 1000)
+        unique_id = str(uuid.uuid4())[:8]
+        return f"complaint_{timestamp}_{unique_id}"
 
-    def start_background_processing(self):
-        """Start processing in background thread"""
-        if not self.is_running:
-            self.is_running = True
-            self.processing_thread = threading.Thread(target=self.processing_loop, daemon=True)
-            self.processing_thread.start()
-            print("🎬 Background LLM processing started")
-        else:
-            print("⚠️ Processing already running")
-
-    def stop_processing(self):
-        """Stop background processing"""
-        if self.is_running:
-            self.is_running = False
-            if self.processing_thread:
-                self.processing_thread.join(timeout=5)
-            print("⏹️ LLM processing stopped")
-
-    def run_blocking(self):
-        """Run processor in blocking mode"""
-        self.is_running = True
+    def _upload_images(
+        self,
+        complaint_id: str,
+        image_files: List[Any],
+        image_filenames: List[str]
+    ) -> List[str]:
+        """
+        Upload images to Firebase Storage.
+        
+        Args:
+            complaint_id: Complaint identifier
+            image_files: List of file objects or bytes
+            image_filenames: List of filenames
+            
+        Returns:
+            List of public URLs
+        """
         try:
-            self.processing_loop()
-        except KeyboardInterrupt:
-            print("\n🛑 Processor stopped by user")
-        finally:
-            self.is_running = False
+            image_urls = self.firebase_service.upload_multiple_images(
+                complaint_id,
+                image_files,
+                image_filenames
+            )
+            return image_urls
+            
+        except Exception as e:
+            print(f"   ❌ Failed to upload images: {e}")
+            return []
 
-# =============== STANDALONE EXECUTION ===============
+    def _save_error_fallback(
+        self,
+        submission: ComplaintSubmission,
+        complaint_id: str,
+        error_message: str
+    ):
+        """
+        Save error fallback complaint when processing fails.
+        
+        Args:
+            submission: Original submission
+            complaint_id: Generated complaint ID
+            error_message: Error message string
+        """
+        try:
+            # Create minimal complaint with error info
+            roll_hash = self.firebase_service.hash_roll_number(submission.roll_number)
+            
+            error_complaint = Complaint(
+                complaint_id=complaint_id,
+                roll_number_hash=roll_hash,
+                department=submission.department,
+                gender=submission.gender,
+                residence=submission.residence,
+                original_text=submission.complaint_text,
+                rephrased_text=f"[ERROR] Complaint processing failed. Please review manually.",
+                category='infrastructure',  # Default
+                assigned_authority='Administrative Officer',  # Default
+                routing_path=['Administrative Officer'],
+                routing_reasoning=f'Error fallback: {error_message[:200]}',
+                hidden_from=[],
+                bypass_applied=False,
+                escalated_to=None,
+                priority_level='Medium',
+                priority_score=50.0,
+                priority_breakdown=['Error fallback - default priority'],
+                priority_emoji='⚠️',
+                status='raised',
+                visibility_type='private',  # Default to private on error
+                is_public=False,
+                requires_image=False,
+                image_requirement_reason='N/A',
+                is_mandatory_image=False,
+                image_urls=[],
+                upvotes=0,
+                downvotes=0,
+                net_votes=0,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+                opened_at=None,
+                reviewed_at=None,
+                closed_at=None,
+                status_history=[],
+                processing_time=0,
+                llm_model_used='error_fallback',
+                llm_confidence='Low'
+            )
+            
+            # Save to Firebase
+            self.firebase_service.create_complaint(error_complaint)
+            print(f"   ⚠️  Error fallback saved: {complaint_id}")
+            
+        except Exception as e:
+            print(f"   💥 Could not save error fallback: {e}")
+
+    # =================== BATCH PROCESSING (OPTIONAL) ===================
+
+    def process_multiple_complaints(
+        self,
+        submissions: List[ComplaintSubmission]
+    ) -> List[Tuple[bool, str, Optional[Complaint]]]:
+        """
+        Process multiple complaints in sequence.
+        
+        Args:
+            submissions: List of ComplaintSubmission objects
+            
+        Returns:
+            List of (success, message, complaint) tuples
+        """
+        results = []
+        
+        print(f"\n📦 Batch processing {len(submissions)} complaints...")
+        
+        for idx, submission in enumerate(submissions, 1):
+            print(f"\n[{idx}/{len(submissions)}]")
+            result = self.process_complaint(submission)
+            results.append(result)
+        
+        # Summary
+        successful = sum(1 for r in results if r[0])
+        print(f"\n✅ Batch complete: {successful}/{len(submissions)} successful")
+        
+        return results
+
+    # =================== UTILITY METHODS ===================
+
+    def get_complaint(self, complaint_id: str) -> Optional[Complaint]:
+        """
+        Get a complaint by ID.
+        
+        Args:
+            complaint_id: Complaint identifier
+            
+        Returns:
+            Complaint object or None
+        """
+        return self.firebase_service.get_complaint(complaint_id)
+
+    def update_complaint_status(
+        self,
+        complaint_id: str,
+        new_status: str,
+        updated_by: str,
+        notes: Optional[str] = None
+    ) -> bool:
+        """
+        Update complaint status.
+        
+        Args:
+            complaint_id: Complaint identifier
+            new_status: New status (raised/opened/reviewed/closed)
+            updated_by: Authority identifier
+            notes: Optional notes
+            
+        Returns:
+            Success status
+        """
+        return self.firebase_service.update_status(
+            complaint_id,
+            new_status,
+            updated_by,
+            notes
+        )
+
+    def get_processing_statistics(self) -> dict:
+        """Get processing statistics."""
+        stats = self.firebase_service.get_system_statistics()
+        
+        return {
+            'total_complaints': stats.total_complaints,
+            'by_status': {
+                'raised': stats.raised_count,
+                'opened': stats.opened_count,
+                'reviewed': stats.reviewed_count,
+                'closed': stats.closed_count
+            },
+            'by_priority': {
+                'critical': stats.critical_count,
+                'high': stats.high_count,
+                'medium': stats.medium_count,
+                'low': stats.low_count
+            },
+            'by_category': {
+                'academic': stats.academic_count,
+                'hostel': stats.hostel_count,
+                'infrastructure': stats.infrastructure_count
+            },
+            'average_processing_time': stats.average_processing_time
+        }
+
+
+# =================== STANDALONE TESTING ===================
+
 if __name__ == '__main__':
-    print("🤖 CAMPUS GRIEVANCE PORTAL - INTELLIGENT LLM PROCESSOR")
+    """Standalone testing mode."""
     print("=" * 70)
-    print("🧠 This service uses advanced LLM technology to:")
-    print("   • Professionally rephrase raw complaints")
-    print("   • Intelligently determine visibility levels")
-    print("   • Accurately classify complaint categories")
-    print("   • Route to appropriate authorities")
-    print("🔄 Monitoring Firebase queue for raw submissions...")
-    print("⏹️ Press Ctrl+C to stop")
+    print("🤖 CAMPUSVOICE - COMPLAINT PROCESSOR TEST")
     print("=" * 70)
-
+    print()
+    
     try:
-        processor = IntelligentComplaintProcessor()
-        processor.run_blocking()
+        # Initialize processor
+        processor = ComplaintProcessor()
+        
+        # Create test submission
+        test_submission = ComplaintSubmission(
+            roll_number="21CS001",
+            department="Computer Science & Engineering",
+            gender="male",
+            residence="Hostel A",
+            complaint_text="The WiFi in hostel is not working properly. Speed is very slow and keeps disconnecting.",
+            is_public=True
+        )
+        
+        print("\n📝 Test Submission:")
+        print(f"   Roll: {test_submission.roll_number}")
+        print(f"   Dept: {test_submission.department}")
+        print(f"   Text: {test_submission.complaint_text}")
+        print()
+        
+        # Process complaint
+        success, message, complaint = processor.process_complaint(test_submission)
+        
+        print("\n" + "=" * 70)
+        if success and complaint:
+            print("✅ TEST PASSED")
+            print(f"\n🆔 Complaint ID: {complaint.complaint_id}")
+            print(f"📂 Category: {complaint.category}")
+            print(f"🎯 Authority: {complaint.assigned_authority}")
+            print(f"⚡ Priority: {complaint.priority_level} ({complaint.priority_score:.1f})")
+            print(f"✍️  Rephrased: {complaint.rephrased_text[:100]}...")
+        else:
+            print("❌ TEST FAILED")
+            print(f"   Message: {message}")
+        print("=" * 70)
+        
     except KeyboardInterrupt:
-        print("\n🛑 Intelligent Processor stopped by user")
+        print("\n🛑 Test stopped by user")
     except Exception as e:
-        print(f"\n💥 Critical error: {e}")
+        print(f"\n💥 Test error: {e}")
         import traceback
         traceback.print_exc()
