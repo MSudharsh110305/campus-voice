@@ -1,150 +1,103 @@
+"""
+Core module for CampusVoice AI
+Complaint Processing & Routing System
 
-from .config import Config
-from text_processor import TextProcessor, clean_text, extract_metadata
-from llm_engine import OllamaClient
-from hybrid_classifier import HybridClassifier
-from authority_mapper import AuthorityMapper
-from privacy_detector import PrivacyDetector
-from priority_scorer import PriorityScorer
-import os
-import sys
-import time
-import json
+This module provides the core functionality for intelligent complaint routing,
+priority scoring, and authority mapping with pseudo-anonymity support.
 
-# Add project root to path FIRST
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+Version: 4.0.0 - Production Ready
 
-# Import core modules DIRECTLY (bypass core/__init__.py)
-sys.path.insert(0, os.path.join(project_root, 'core'))
+Main Components:
+- Config: Application configuration and constants
+- AuthorityMapper: Smart complaint routing with hierarchy and bypass logic
+- PriorityScorer: Multi-factor priority calculation with voting and aging
 
-# Direct imports from core files
-from config import Config
-from core.hybrid_classifier import CampusVoiceClassifier  
-from core.llm_engine import OllamaClient
-
-# Import API modules
-from api.firebase_service import FirebaseService
-from api.queue_manager import QueueManager
-
-class ComplaintProcessor:
-    def __init__(self):
-        print("🔧 Initializing Complaint Processor...")
-        try:
-            self.config = Config()
-            self.classifier = CampusVoiceClassifier(self.config)
-            self.llm_client = OllamaClient(self.config)
-            self.firebase_service = FirebaseService()
-            self.queue_manager = QueueManager()
-            print("✅ Complaint Processor initialized successfully")
-        except Exception as e:
-            print(f"❌ Failed to initialize: {e}")
-            raise
+Usage:
+    from core import Config, AuthorityMapper, PriorityScorer
     
-    def process_complaint(self, complaint_data: dict) -> dict:
-        """Process a single complaint through the LLM pipeline"""
-        complaint_id = complaint_data['complaint_id']
-        data = complaint_data['complaint_data']
-        
-        try:
-            print(f"🔄 Processing complaint {complaint_id}...")
-            
-            # Mark as processing
-            self.queue_manager.mark_processing(complaint_id)
-            
-            # Run classification
-            result = self.classifier.classify(
-                complaint=data['complaint_text'],
-                user_department=data['user_department'],
-                upvotes=0,
-                image_data=data.get('image_data'),
-                user_residence=data.get('user_residence')
-            )
-            
-            # Rephrase complaint
-            user_context = {
-                'department': data['user_department'],
-                'residence': data.get('user_residence'),
-                'email': data.get('user_email')
-            }
-            
-            rephrased = self.llm_client.rephrase_complaint(
-                complaint=data['complaint_text'],
-                user_context=user_context,
-                image_data=data.get('image_data'),
-                classification_hint=result.category
-            )
-            
-            # Prepare processing result
-            processing_result = {
-                'category': result.category,
-                'final_authority': result.final_authority,
-                'routing_path': result.routing_path,
-                'priority_level': result.priority_level,
-                'confidence': result.confidence,
-                'reasoning': result.reasoning,
-                'rephrased_complaint': rephrased,
-                'processing_time': result.processing_time,
-                'model_used': result.model_used
-            }
-            
-            # Update Firebase
-            self.firebase_service.update_complaint_processing(complaint_id, processing_result)
-            
-            # Mark as completed
-            self.queue_manager.mark_completed(complaint_id)
-            
-            print(f"✅ Completed processing complaint {complaint_id}")
-            return processing_result
-            
-        except Exception as e:
-            print(f"❌ Error processing complaint {complaint_id}: {str(e)}")
-            
-            # Mark as completed even on error
-            self.queue_manager.mark_completed(complaint_id)
-            
-            # Update Firebase with error status
-            error_result = {
-                'category': 'infrastructure',
-                'final_authority': 'Administrative Officer (AO)',
-                'routing_path': ['Error in processing'],
-                'priority_level': 'Medium',
-                'confidence': 'Low',
-                'reasoning': f'Processing error: {str(e)}',
-                'rephrased_complaint': data['complaint_text'],
-                'processing_time': 0,
-                'model_used': 'error_fallback'
-            }
-            
-            self.firebase_service.update_complaint_processing(complaint_id, error_result)
-            raise e
-    
-    def run_processor(self):
-        """Main processing loop"""
-        print("🚀 Starting complaint processor...")
-        print("⏳ Waiting for complaints to process...")
-        
-        while True:
-            try:
-                complaint_data = self.queue_manager.get_next_complaint()
-                
-                if complaint_data:
-                    self.process_complaint(complaint_data)
-                else:
-                    time.sleep(1)
-                    
-            except Exception as e:
-                print(f"❌ Error in processor: {str(e)}")
-                time.sleep(5)
+    config = Config()
+    mapper = AuthorityMapper(config)
+    scorer = PriorityScorer(config)
+"""
 
-if __name__ == '__main__':
-    processor = ComplaintProcessor()
-    processor.run_processor()
+from .config import Config, get_config
+from .authority_mapper import AuthorityMapper
+from .priority_scorer import PriorityScorer
 
-__version__ = "2.0"
+__version__ = "4.0.0"
+__author__ = "CampusVoice Team"
+__license__ = "MIT"
+
 __all__ = [
-    "Config", "TextProcessor", "clean_text", "extract_metadata",
-    "OllamaClient", "HybridClassifier", "AuthorityMapper",
-    "PrivacyDetector", "PriorityScorer"
+    "Config",
+    "get_config",
+    "AuthorityMapper",
+    "PriorityScorer",
+    "__version__"
 ]
+
+
+# Convenience function for quick setup
+def initialize_core_modules():
+    """
+    Initialize all core modules with shared config.
+    
+    Returns:
+        tuple: (config, authority_mapper, priority_scorer)
+    
+    Example:
+        >>> from core import initialize_core_modules
+        >>> config, mapper, scorer = initialize_core_modules()
+    """
+    config = get_config()
+    mapper = AuthorityMapper(config)
+    scorer = PriorityScorer(config)
+    
+    return config, mapper, scorer
+
+
+# Add to __all__
+__all__.append("initialize_core_modules")
+
+
+# Module-level configuration check
+def check_configuration():
+    """
+    Validate core module configuration on import.
+    Warns if critical settings are missing.
+    
+    Returns:
+        bool: True if configuration is valid
+    """
+    try:
+        config = get_config()
+        
+        issues = []
+        
+        # Check Groq API key if enabled
+        if config.use_groq and not config.groq_api_key:
+            issues.append("⚠️  GROQ_API_KEY not configured")
+        
+        # Check Firebase credentials
+        import os
+        if not os.path.exists(config.firebase_credentials_path):
+            issues.append(f"⚠️  Firebase credentials not found: {config.firebase_credentials_path}")
+        
+        if issues:
+            print("\n" + "="*60)
+            print("🔧 CampusVoice Core Module Configuration Issues:")
+            for issue in issues:
+                print(f"   {issue}")
+            print("="*60 + "\n")
+            return False
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error checking configuration: {e}")
+        return False
+
+
+# Optional: Run configuration check on import (can be disabled)
+# Uncomment the line below if you want auto-check on import
+# check_configuration()
