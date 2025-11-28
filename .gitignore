@@ -6,3 +6,9 @@ firebase-key.json
 
 # Ignore environment variables file
 .env
+
+# Ignore VS Code settings
+.vscode/
+
+# Ignore scripts
+backdate_commits.sh
