@@ -108,7 +108,8 @@ class Config:
         "Civil Engineering",
         "Information Technology",
         "Management Studies",
-        "Artificial Intelligence and Data Science"
+        "Artificial Intelligence and Data Science",
+        "M.Tech in Computer Science and Engineering"
     ])
 
     # Department aliases (short → full canonical names)
@@ -220,14 +221,16 @@ class Config:
     ])
 
     # =================== SENSITIVE CONTENT DETECTION ===================
-    # Keywords for confidential complaints → route to Disciplinary Committee
+    # Keywords for confidential complaints → route to Disciplinary Committee ONLY (not principal)
     privacy_keywords: List[str] = field(default_factory=lambda: [
         "harassment", "harass", "harassed", "ragging", "abuse", "abused",
         "corruption", "discrimination", "discriminate", "bribery", "bribe",
         "misconduct", "inappropriate", "sexual", "violence", "violent",
         "threat", "threaten", "assault", "assaulted", "bully", "bullying",
         "intimidate", "intimidation", "mental health", "depression",
-        "anxiety", "suicide", "self harm", "molest", "molestation", "stalking"
+        "anxiety", "suicide", "self harm", "molest", "molestation", "stalking",
+        "personal issue", "personal problem", "very personal", "private matter",
+        "confidential issue", "sensitive matter"
     ])
 
     # =================== PRIORITY SCORING ===================

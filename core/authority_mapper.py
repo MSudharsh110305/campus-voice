@@ -59,12 +59,14 @@ class AuthorityMapper:
             'door', 'window', 'wall', 'floor', 'paint', 'maintenance'
         ]
         
-        # Disciplinary keywords
+        # Disciplinary keywords (ragging, harassment, personal issues)
         self.disciplinary_keywords = [
             'harass', 'harassed', 'harassment', 'sexual', 'abuse', 'abused',
             'assault', 'molest', 'molestation', 'discrimination', 'ragging',
             'threat', 'stalking', 'inappropriate behavior', 'misconduct',
-            'bully', 'bullying', 'intimidate', 'violent', 'violence'
+            'bully', 'bullying', 'intimidate', 'violent', 'violence',
+            'personal issue', 'personal problem', 'very personal', 'private matter',
+            'mental health', 'depression', 'anxiety', 'suicide', 'self harm'
         ]
         
         # Context facility keywords
@@ -136,17 +138,17 @@ class AuthorityMapper:
         return self._route_infrastructure_smart(txt, user_department, mentioned_department, '')
 
     def _route_disciplinary(self, user_department: str) -> Dict[str, Any]:
-        """Route sensitive/disciplinary complaints to counselor."""
+        """Route sensitive/disciplinary complaints to counselor ONLY (not principal)."""
         return {
             'final_authority': 'Student Counselor / Disciplinary Committee',
             'routing_path': [
-                'Sensitive content detected (harassment/abuse/misconduct)',
-                'Routed to Student Counselor / Disciplinary Committee',
+                'Sensitive content detected (harassment/abuse/ragging/personal issues)',
+                'Routed to Student Counselor / Disciplinary Committee ONLY',
                 f'Department context: {user_department}',
-                'Confidential handling required'
+                'Confidential handling required - Principal can view but not assigned'
             ],
-            'routing_reasoning': 'Sensitive complaint requires confidential disciplinary handling',
-            'hidden_from': [],
+            'routing_reasoning': 'Sensitive complaint (ragging/harassment/personal issues) routed exclusively to Student Counselor / Disciplinary Committee for confidential handling',
+            'hidden_from': [],  # Principal can see all, but complaint is assigned to counselor only
             'bypass_applied': False,
             'escalated_to': None
         }

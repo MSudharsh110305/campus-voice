@@ -131,6 +131,10 @@ class Complaint:
     processing_time: float = 0.0
     llm_model_used: str = "groq"
     llm_confidence: str = "Medium"
+    
+    # Abusive language detection
+    contains_abusive_language: bool = False
+    language_issues: Optional[str] = None  # Description of language issues found
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for Firebase storage"""

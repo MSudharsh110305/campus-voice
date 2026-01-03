@@ -523,9 +523,10 @@ class FirebaseService:
     ) -> Tuple[List[AuthorityComplaintView], int]:
         """
         Get complaints assigned to an authority with visibility filtering.
+        Principal can see ALL complaints (not just assigned ones).
         
         Args:
-            authority_name: Authority name (e.g., "Head of Department - CSE")
+            authority_name: Authority name (e.g., "Head of Department - CSE" or "Principal (Admin)")
             filters: Optional filters (status, priority, category)
             page: Page number
             limit: Items per page
@@ -534,10 +535,17 @@ class FirebaseService:
             Tuple of (complaint views, total count)
         """
         try:
-            # Build query
-            query = self.db.collection(self.COMPLAINTS).where(
-                filter=FieldFilter('assigned_authority', '==', authority_name)
-            )
+            # Principal can see ALL complaints, not just assigned ones
+            is_principal = 'principal' in authority_name.lower()
+            
+            if is_principal:
+                # Get ALL complaints for principal
+                query = self.db.collection(self.COMPLAINTS)
+            else:
+                # Build query for assigned complaints only
+                query = self.db.collection(self.COMPLAINTS).where(
+                    filter=FieldFilter('assigned_authority', '==', authority_name)
+                )
             
             # Apply filters
             if filters:
@@ -589,6 +597,10 @@ class FirebaseService:
     
     def _can_view_complaint(self, complaint: Complaint, authority_name: str) -> bool:
         """Check if authority can view complaint (visibility filtering)"""
+        # Principal can see ALL complaints (including those hidden from others)
+        if 'principal' in authority_name.lower():
+            return True
+        
         # Extract authority type from name
         auth_type = authority_name.lower().split()[0] if authority_name else ""
         

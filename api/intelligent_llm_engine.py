@@ -258,8 +258,14 @@ class IntelligentLLMEngine:
                 status_history=[],
                 processing_time=time.time() - start_time,
                 llm_model_used=llm_result.get('model_used', 'rule_based_engine'),
-                llm_confidence=llm_result.get('confidence', 'Medium')
+                llm_confidence=llm_result.get('confidence', 'Medium'),
+                contains_abusive_language=llm_result.get('contains_abusive_language', False),
+                language_issues=llm_result.get('language_issues')
             )
+            
+            # Flag user if abusive language detected
+            if complaint.contains_abusive_language:
+                self._flag_abusive_user(submission.roll_number, complaint.complaint_id)
             
             print(f"✅ Processing completed in {complaint.processing_time:.2f}s")
             return complaint
@@ -380,12 +386,22 @@ User Context Schema:
 
 Processing Tasks:
 1. REPHRASE the complaint professionally (1-2 sentences, formal tone, preserve specific details)
+   - Remove ALL abusive language, profanity, and informal slang
+   - Convert to formal, respectful language
+   - Preserve the core meaning and specific details
+   - Flag if original text contained abusive/violent language
 2. DETERMINE visibility level (see rules below)
 3. CLASSIFY category (see rules below)
 4. PROVIDE brief reasoning
 
+Language Processing Rules:
+- Detect abusive, profane, or very informal language
+- Convert to formal, professional tone
+- Remove all bad words and replace with appropriate formal alternatives
+- Flag abusive/violent language for user tracking
+
 Visibility Rules:
-- CONFIDENTIAL: Harassment, abuse, sexual misconduct, discrimination, mental health issues, ragging
+- CONFIDENTIAL: Harassment, abuse, sexual misconduct, discrimination, mental health issues, ragging, very personal issues
 - PRIVATE: Personal issues, individual cases, requests for anonymity, student specifically asks not to share
 - PUBLIC: General issues affecting multiple students (default for infrastructure/academic issues)
 
@@ -399,16 +415,18 @@ Special Rules:
 - Department lab equipment (3D printer, oscilloscope, etc.) → academic
 - Buildings/blocks → infrastructure (unless department-specific equipment)
 - Hostel-related facilities (mess, hostel rooms) → hostel
-- Sensitive content (harassment, abuse) → ALWAYS confidential
+- Sensitive content (harassment, abuse, ragging, very personal issues) → ALWAYS confidential
 - Faculty/teaching complaints → academic
 
 Response Format (MUST be valid JSON):
 {
-  "rephrased_complaint": "Professional version of the complaint",
+  "rephrased_complaint": "Professional formal version of the complaint (no bad words, formal tone)",
   "visibility": "public|private|confidential",
   "category": "hostel|academic|infrastructure",
   "confidence": "High|Medium|Low",
-  "reasoning": "Brief explanation of classification"
+  "reasoning": "Brief explanation of classification",
+  "contains_abusive_language": true/false,
+  "language_issues": "Description of language issues found (if any)"
 }"""
 
         user_prompt = f"""Original Complaint: {complaint}
@@ -444,6 +462,12 @@ Process this complaint and return ONLY valid JSON."""
                 # Validate and sanitize response
                 llm_result = self._validate_llm_output(llm_result)
                 
+                # Detect abusive language (rule-based fallback if LLM didn't detect)
+                if not llm_result.get('contains_abusive_language', False):
+                    llm_result['contains_abusive_language'] = self._detect_abusive_language(complaint)
+                    if llm_result['contains_abusive_language']:
+                        llm_result['language_issues'] = "Informal or inappropriate language detected"
+                
                 # Override for confidential content
                 if self._has_confidential_content(complaint):
                     llm_result['visibility'] = 'confidential'
@@ -451,6 +475,12 @@ Process this complaint and return ONLY valid JSON."""
                 # Handle refusals
                 if self._is_refusal_or_empty(llm_result.get('rephrased_complaint', '')):
                     llm_result['rephrased_complaint'] = self._default_sensitive_text(user_context)
+                
+                # Ensure rephrased text is formal (rule-based cleanup)
+                if llm_result.get('contains_abusive_language', False):
+                    llm_result['rephrased_complaint'] = self._formalize_text(
+                        llm_result.get('rephrased_complaint', complaint)
+                    )
                 
                 llm_result['model_used'] = self.groq_model
                 print("   ✅ Groq processing successful")
@@ -715,7 +745,14 @@ Image NOT needed for: Policy complaints, teaching issues, abstract concerns."""
         
         visibility = self._determine_visibility_rules(complaint)
         category = self._rule_based_classify_category(complaint)
+        
+        # Detect abusive language
+        contains_abusive = self._detect_abusive_language(complaint)
+        
+        # Rephrase with formalization if needed
         rephrased = self._rule_based_rephrase(complaint, user_context)
+        if contains_abusive:
+            rephrased = self._formalize_text(rephrased)
         
         # Override for confidential content
         if self._has_confidential_content(complaint):
@@ -729,7 +766,9 @@ Image NOT needed for: Policy complaints, teaching issues, abstract concerns."""
             'category': category,
             'confidence': 'High' if visibility == 'confidential' else 'Medium',
             'reasoning': f'Rule-based: {category} complaint, {visibility} visibility',
-            'model_used': 'rule_based_engine'
+            'model_used': 'rule_based_engine',
+            'contains_abusive_language': contains_abusive,
+            'language_issues': "Informal or inappropriate language detected" if contains_abusive else None
         }
 
     def _determine_visibility_rules(self, complaint: str) -> str:
@@ -835,7 +874,9 @@ Image NOT needed for: Policy complaints, teaching issues, abstract concerns."""
         if self._has_confidential_content(complaint):
             return self._default_sensitive_text(user_context)
         
-        rephrased = complaint.strip()
+        # Check for abusive language and formalize
+        contains_abusive = self._detect_abusive_language(complaint)
+        rephrased = self._formalize_text(complaint.strip()) if contains_abusive else complaint.strip()
         
         # Add professional opening if needed
         if not rephrased.startswith(("I would like", "We would like", "This is", "I am")):
@@ -980,6 +1021,171 @@ Image NOT needed for: Policy complaints, teaching issues, abstract concerns."""
         
         return mapping.get(llm_visibility, 'public')
 
+    # =================== ABUSIVE LANGUAGE DETECTION ===================
+    
+    def _detect_abusive_language(self, text: str) -> bool:
+        """Detect abusive, profane, or very informal language."""
+        txt = text.lower()
+        
+        # Common profanity patterns (partial words to catch variations)
+        profanity_patterns = [
+            'f***', 'f**k', 'sh**', 'b***h', 'a**', 'd**n', 'h**l',
+            'damn', 'hell', 'crap', 'stupid', 'idiot', 'moron', 'fool'
+        ]
+        
+        # Very informal/slang patterns
+        informal_patterns = [
+            'wtf', 'omg', 'lol', 'rofl', 'smh', 'tbh', 'ngl', 'fr',
+            'bruh', 'dude', 'bro', 'yo', 'nah', 'yeah', 'yep', 'nope',
+            'gonna', 'wanna', 'gotta', 'lemme', 'gimme', 'dunno'
+        ]
+        
+        # Aggressive/violent language
+        violent_patterns = [
+            'kill', 'die', 'hate', 'destroy', 'attack', 'fight', 'beat',
+            'punch', 'hit', 'hurt', 'harm', 'threat', 'violence'
+        ]
+        
+        # Check for profanity
+        for pattern in profanity_patterns:
+            if pattern in txt:
+                return True
+        
+        # Check for excessive informal language (3+ instances)
+        informal_count = sum(1 for pattern in informal_patterns if pattern in txt)
+        if informal_count >= 3:
+            return True
+        
+        # Check for violent language in complaint context
+        violent_count = sum(1 for pattern in violent_patterns if pattern in txt)
+        if violent_count >= 2:
+            return True
+        
+        # Check for excessive capitalization (shouting)
+        if len([c for c in text if c.isupper()]) > len(text) * 0.5 and len(text) > 20:
+            return True
+        
+        # Check for excessive punctuation (aggressive)
+        if text.count('!') > 3 or text.count('?') > 5:
+            return True
+        
+        return False
+    
+    def _formalize_text(self, text: str) -> str:
+        """Convert informal/abusive text to formal language."""
+        if not text:
+            return text
+        
+        formalized = text
+        
+        # Replace common informal contractions
+        replacements = {
+            "gonna": "going to",
+            "wanna": "want to",
+            "gotta": "have to",
+            "lemme": "let me",
+            "gimme": "give me",
+            "dunno": "do not know",
+            "can't": "cannot",
+            "won't": "will not",
+            "don't": "do not",
+            "isn't": "is not",
+            "doesn't": "does not",
+            "wasn't": "was not",
+            "weren't": "were not",
+            "haven't": "have not",
+            "hasn't": "has not",
+            "hadn't": "had not",
+            "wouldn't": "would not",
+            "shouldn't": "should not",
+            "couldn't": "could not",
+            "mustn't": "must not",
+            "ain't": "is not",
+            "ya": "you",
+            "yeah": "yes",
+            "yep": "yes",
+            "nope": "no",
+            "nah": "no",
+            "bruh": "sir/madam",
+            "dude": "sir/madam",
+            "bro": "sir/madam",
+            "wtf": "what",
+            "omg": "",
+            "lol": "",
+            "rofl": "",
+            "smh": "",
+            "tbh": "to be honest",
+            "ngl": "to be honest",
+            "fr": "for real"
+        }
+        
+        # Apply replacements (case-insensitive)
+        for informal, formal in replacements.items():
+            pattern = re.compile(re.escape(informal), re.IGNORECASE)
+            formalized = pattern.sub(formal, formalized)
+        
+        # Remove excessive punctuation
+        formalized = re.sub(r'!{2,}', '.', formalized)  # Multiple ! to single .
+        formalized = re.sub(r'\?{3,}', '?', formalized)  # Multiple ? to single ?
+        
+        # Remove excessive capitalization (convert to sentence case)
+        words = formalized.split()
+        if len([w for w in words if w.isupper() and len(w) > 1]) > len(words) * 0.3:
+            formalized = formalized.capitalize()
+        
+        # Remove profanity (replace with [inappropriate language])
+        profanity_words = ['damn', 'hell', 'crap', 'stupid', 'idiot', 'moron', 'fool']
+        for word in profanity_words:
+            pattern = re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
+            formalized = pattern.sub('[inappropriate language]', formalized)
+        
+        # Ensure proper sentence structure
+        if not formalized.endswith(('.', '!', '?')):
+            formalized += '.'
+        
+        return formalized.strip()
+    
+    def _flag_abusive_user(self, roll_number: str, complaint_id: str):
+        """Flag user as abusive/violent speaker in Firebase."""
+        try:
+            from api.firebase_service import FirebaseService
+            firebase_service = FirebaseService()
+            
+            roll_hash = self._hash_roll_number(roll_number)
+            user_ref = firebase_service.db.collection('users').document(roll_hash)
+            
+            # Get or create user document
+            user_doc = user_ref.get()
+            if user_doc.exists:
+                user_data = user_doc.to_dict()
+                abusive_count = user_data.get('abusive_complaints_count', 0) + 1
+                flagged_complaints = user_data.get('abusive_complaint_ids', [])
+                flagged_complaints.append(complaint_id)
+                
+                user_ref.update({
+                    'is_abusive_user': True,
+                    'abusive_complaints_count': abusive_count,
+                    'abusive_complaint_ids': flagged_complaints,
+                    'last_abusive_complaint': complaint_id,
+                    'last_flagged_at': datetime.now(timezone.utc).isoformat()
+                })
+            else:
+                # Create new user document
+                user_ref.set({
+                    'roll_number_hash': roll_hash,
+                    'is_abusive_user': True,
+                    'abusive_complaints_count': 1,
+                    'abusive_complaint_ids': [complaint_id],
+                    'last_abusive_complaint': complaint_id,
+                    'first_flagged_at': datetime.now(timezone.utc).isoformat(),
+                    'last_flagged_at': datetime.now(timezone.utc).isoformat()
+                })
+            
+            print(f"   ⚠️ User {roll_hash[:8]}... flagged as abusive/violent speaker")
+        except Exception as e:
+            print(f"   ⚠️ Failed to flag abusive user: {e}")
+            # Don't fail the complaint processing if flagging fails
+    
     def _create_fallback_complaint(
         self,
         submission: ComplaintSubmission,
@@ -990,14 +1196,18 @@ Image NOT needed for: Policy complaints, teaching issues, abstract concerns."""
         """Create fallback complaint on processing error."""
         roll_hash = self._hash_roll_number(submission.roll_number)
         
-        return Complaint(
+        # Check for abusive language even in fallback
+        contains_abusive = self._detect_abusive_language(submission.complaint_text)
+        rephrased = self._formalize_text(submission.complaint_text) if contains_abusive else "Complaint processing encountered an error. Please review manually."
+        
+        complaint = Complaint(
             complaint_id=complaint_id,
             roll_number_hash=roll_hash,
             department=submission.department,
             gender=submission.gender,
             residence=submission.residence,
             original_text=submission.complaint_text,
-            rephrased_text="Complaint processing encountered an error. Please review manually.",
+            rephrased_text=rephrased,
             category='infrastructure',  # Default
             assigned_authority='Administrative Officer',  # Default
             routing_path=['Administrative Officer'],
@@ -1027,5 +1237,13 @@ Image NOT needed for: Policy complaints, teaching issues, abstract concerns."""
             status_history=[],
             processing_time=time.time() - start_time,
             llm_model_used='error_fallback',
-            llm_confidence='Low'
+            llm_confidence='Low',
+            contains_abusive_language=contains_abusive,
+            language_issues="Informal or inappropriate language detected" if contains_abusive else None
         )
+        
+        # Flag user if abusive language detected
+        if contains_abusive:
+            self._flag_abusive_user(submission.roll_number, complaint_id)
+        
+        return complaint
