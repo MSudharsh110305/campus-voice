@@ -1,0 +1,250 @@
+[2026-01-03 21:15:02] [PID:2388] INFO in main: ======================================================================
+[2026-01-03 21:15:02] [PID:2388] INFO in main: CAMPUSVOICE v5.0.0 - WORKER 2388 STARTING
+[2026-01-03 21:15:02] [PID:2388] INFO in main: ======================================================================
+[2026-01-03 21:15:02] [PID:2388] INFO in main: 
+[2026-01-03 21:15:02] [PID:2388] INFO in main: 📋 Step 1: Loading configuration...
+[2026-01-03 21:15:02] [PID:2388] INFO in main:    ✅ Configuration loaded
+[2026-01-03 21:15:02] [PID:2388] INFO in main:       • Departments: 13
+[2026-01-03 21:15:02] [PID:2388] INFO in main:       • Categories: 3 (hostel, academic, infrastructure)
+[2026-01-03 21:15:02] [PID:2388] INFO in main:       • LLM Model: llama-3.3-70b-versatile
+[2026-01-03 21:15:02] [PID:2388] INFO in main:       • Groq API: ✅ Configured
+[2026-01-03 21:15:02] [PID:2388] INFO in main: 
+[2026-01-03 21:15:02] [PID:2388] INFO in main: 🔥 Step 2: Initializing Firebase Service...
+[2026-01-03 21:15:02] [PID:2388] INFO in main:    ✅ Firebase Service initialized
+[2026-01-03 21:15:02] [PID:2388] INFO in main:       • Collections: complaints, complaint_votes
+[2026-01-03 21:15:02] [PID:2388] INFO in main: 
+[2026-01-03 21:15:02] [PID:2388] INFO in main: 🤖 Step 3: Initializing LLM Engine...
+[2026-01-03 21:15:02] [PID:2388] INFO in main:    ✅ LLM Engine initialized
+[2026-01-03 21:15:02] [PID:2388] INFO in main:       • Status: Groq Available
+[2026-01-03 21:15:02] [PID:2388] INFO in main:       • Model: llama-3.3-70b-versatile
+[2026-01-03 21:15:02] [PID:2388] INFO in main:       • Abusive Detection: ✅ Enabled
+[2026-01-03 21:15:02] [PID:2388] INFO in main: 
+[2026-01-03 21:15:02] [PID:2388] INFO in main: ⚙️  Step 4: Initializing Complaint Processor...
+[2026-01-03 21:15:03] [PID:2388] INFO in main:    ✅ Complaint Processor initialized
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 
+[2026-01-03 21:15:03] [PID:2388] INFO in main: ======================================================================
+[2026-01-03 21:15:03] [PID:2388] INFO in main: ✅ WORKER 2388 - ALL SERVICES READY
+[2026-01-03 21:15:03] [PID:2388] INFO in main: ======================================================================
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 🚀 CampusVoice is ready to process complaints!
+[2026-01-03 21:15:03] [PID:2388] INFO in main:    • Worker ID: 2388
+[2026-01-03 21:15:03] [PID:2388] INFO in main:    • Debug Mode: ENABLED
+[2026-01-03 21:15:03] [PID:2388] INFO in main:    • Concurrent Processing: ENABLED
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 
+[2026-01-03 21:15:03] [PID:2388] INFO in main: ======================================================================
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 
+[2026-01-03 21:15:03] [PID:2388] INFO in main: ======================================================================
+[2026-01-03 21:15:03] [PID:2388] INFO in main: CAMPUSVOICE v5.0.0 - WORKER 2388 STARTING
+[2026-01-03 21:15:03] [PID:2388] INFO in main: ======================================================================
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 📋 Step 1: Loading configuration...
+[2026-01-03 21:15:03] [PID:2388] INFO in main:    ✅ Configuration loaded
+[2026-01-03 21:15:03] [PID:2388] INFO in main:       • Departments: 13
+[2026-01-03 21:15:03] [PID:2388] INFO in main:       • Categories: 3 (hostel, academic, infrastructure)
+[2026-01-03 21:15:03] [PID:2388] INFO in main:       • LLM Model: llama-3.3-70b-versatile
+[2026-01-03 21:15:03] [PID:2388] INFO in main:       • Groq API: ✅ Configured
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 🔥 Step 2: Initializing Firebase Service...
+[2026-01-03 21:15:03] [PID:2388] INFO in main:    ✅ Firebase Service initialized
+[2026-01-03 21:15:03] [PID:2388] INFO in main:       • Collections: complaints, complaint_votes
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 🤖 Step 3: Initializing LLM Engine...
+[2026-01-03 21:15:03] [PID:2388] INFO in main:    ✅ LLM Engine initialized
+[2026-01-03 21:15:03] [PID:2388] INFO in main:       • Status: Groq Available
+[2026-01-03 21:15:03] [PID:2388] INFO in main:       • Model: llama-3.3-70b-versatile
+[2026-01-03 21:15:03] [PID:2388] INFO in main:       • Abusive Detection: ✅ Enabled
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 
+[2026-01-03 21:15:03] [PID:2388] INFO in main: ⚙️  Step 4: Initializing Complaint Processor...
+[2026-01-03 21:15:03] [PID:2388] INFO in main:    ✅ Complaint Processor initialized
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 
+[2026-01-03 21:15:03] [PID:2388] INFO in main: ======================================================================
+[2026-01-03 21:15:03] [PID:2388] INFO in main: ✅ WORKER 2388 - ALL SERVICES READY
+[2026-01-03 21:15:03] [PID:2388] INFO in main: ======================================================================
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 🚀 CampusVoice is ready to process complaints!
+[2026-01-03 21:15:03] [PID:2388] INFO in main:    • Worker ID: 2388
+[2026-01-03 21:15:03] [PID:2388] INFO in main:    • Debug Mode: ENABLED
+[2026-01-03 21:15:03] [PID:2388] INFO in main:    • Concurrent Processing: ENABLED
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 
+[2026-01-03 21:15:03] [PID:2388] INFO in main: ======================================================================
+[2026-01-03 21:15:03] [PID:2388] INFO in main: 
+[2026-01-03 21:17:28] [PID:14016] INFO in main: ======================================================================
+[2026-01-03 21:17:28] [PID:14016] INFO in main: CAMPUSVOICE v5.0.0 - WORKER 14016 STARTING
+[2026-01-03 21:17:28] [PID:14016] INFO in main: ======================================================================
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 📋 Step 1: Loading configuration...
+[2026-01-03 21:17:28] [PID:14016] INFO in main:    ✅ Configuration loaded
+[2026-01-03 21:17:28] [PID:14016] INFO in main:       • Departments: 13
+[2026-01-03 21:17:28] [PID:14016] INFO in main:       • Categories: 3 (hostel, academic, infrastructure)
+[2026-01-03 21:17:28] [PID:14016] INFO in main:       • LLM Model: llama-3.3-70b-versatile
+[2026-01-03 21:17:28] [PID:14016] INFO in main:       • Groq API: ✅ Configured
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 🔥 Step 2: Initializing Firebase Service...
+[2026-01-03 21:17:28] [PID:14016] INFO in main:    ✅ Firebase Service initialized
+[2026-01-03 21:17:28] [PID:14016] INFO in main:       • Collections: complaints, complaint_votes
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 🤖 Step 3: Initializing LLM Engine...
+[2026-01-03 21:17:28] [PID:14016] INFO in main:    ✅ LLM Engine initialized
+[2026-01-03 21:17:28] [PID:14016] INFO in main:       • Status: Groq Available
+[2026-01-03 21:17:28] [PID:14016] INFO in main:       • Model: llama-3.3-70b-versatile
+[2026-01-03 21:17:28] [PID:14016] INFO in main:       • Abusive Detection: ✅ Enabled
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 
+[2026-01-03 21:17:28] [PID:14016] INFO in main: ⚙️  Step 4: Initializing Complaint Processor...
+[2026-01-03 21:17:28] [PID:14016] INFO in main:    ✅ Complaint Processor initialized
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 
+[2026-01-03 21:17:28] [PID:14016] INFO in main: ======================================================================
+[2026-01-03 21:17:28] [PID:14016] INFO in main: ✅ WORKER 14016 - ALL SERVICES READY
+[2026-01-03 21:17:28] [PID:14016] INFO in main: ======================================================================
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 🚀 CampusVoice is ready to process complaints!
+[2026-01-03 21:17:28] [PID:14016] INFO in main:    • Worker ID: 14016
+[2026-01-03 21:17:28] [PID:14016] INFO in main:    • Debug Mode: ENABLED
+[2026-01-03 21:17:28] [PID:14016] INFO in main:    • Concurrent Processing: ENABLED
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 
+[2026-01-03 21:17:28] [PID:14016] INFO in main: ======================================================================
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 
+[2026-01-03 21:17:28] [PID:14016] INFO in main: ======================================================================
+[2026-01-03 21:17:28] [PID:14016] INFO in main: CAMPUSVOICE v5.0.0 - WORKER 14016 STARTING
+[2026-01-03 21:17:28] [PID:14016] INFO in main: ======================================================================
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 📋 Step 1: Loading configuration...
+[2026-01-03 21:17:28] [PID:14016] INFO in main:    ✅ Configuration loaded
+[2026-01-03 21:17:28] [PID:14016] INFO in main:       • Departments: 13
+[2026-01-03 21:17:28] [PID:14016] INFO in main:       • Categories: 3 (hostel, academic, infrastructure)
+[2026-01-03 21:17:28] [PID:14016] INFO in main:       • LLM Model: llama-3.3-70b-versatile
+[2026-01-03 21:17:28] [PID:14016] INFO in main:       • Groq API: ✅ Configured
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 🔥 Step 2: Initializing Firebase Service...
+[2026-01-03 21:17:28] [PID:14016] INFO in main:    ✅ Firebase Service initialized
+[2026-01-03 21:17:28] [PID:14016] INFO in main:       • Collections: complaints, complaint_votes
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 
+[2026-01-03 21:17:28] [PID:14016] INFO in main: 🤖 Step 3: Initializing LLM Engine...
+[2026-01-03 21:17:29] [PID:14016] INFO in main:    ✅ LLM Engine initialized
+[2026-01-03 21:17:29] [PID:14016] INFO in main:       • Status: Groq Available
+[2026-01-03 21:17:29] [PID:14016] INFO in main:       • Model: llama-3.3-70b-versatile
+[2026-01-03 21:17:29] [PID:14016] INFO in main:       • Abusive Detection: ✅ Enabled
+[2026-01-03 21:17:29] [PID:14016] INFO in main: 
+[2026-01-03 21:17:29] [PID:14016] INFO in main: ⚙️  Step 4: Initializing Complaint Processor...
+[2026-01-03 21:17:29] [PID:14016] INFO in main:    ✅ Complaint Processor initialized
+[2026-01-03 21:17:29] [PID:14016] INFO in main: 
+[2026-01-03 21:17:29] [PID:14016] INFO in main: ======================================================================
+[2026-01-03 21:17:29] [PID:14016] INFO in main: ✅ WORKER 14016 - ALL SERVICES READY
+[2026-01-03 21:17:29] [PID:14016] INFO in main: ======================================================================
+[2026-01-03 21:17:29] [PID:14016] INFO in main: 
+[2026-01-03 21:17:29] [PID:14016] INFO in main: 🚀 CampusVoice is ready to process complaints!
+[2026-01-03 21:17:29] [PID:14016] INFO in main:    • Worker ID: 14016
+[2026-01-03 21:17:29] [PID:14016] INFO in main:    • Debug Mode: ENABLED
+[2026-01-03 21:17:29] [PID:14016] INFO in main:    • Concurrent Processing: ENABLED
+[2026-01-03 21:17:29] [PID:14016] INFO in main: 
+[2026-01-03 21:17:29] [PID:14016] INFO in main: ======================================================================
+[2026-01-03 21:17:29] [PID:14016] INFO in main: 
+[2026-01-03 21:18:10] [PID:14016] INFO in main: 
+[2026-01-03 21:18:10] [PID:14016] INFO in main: ======================================================================
+[2026-01-03 21:18:10] [PID:14016] INFO in main: 🛑 WORKER 14016 - SHUTTING DOWN GRACEFULLY
+[2026-01-03 21:18:10] [PID:14016] INFO in main: ======================================================================
+[2026-01-03 21:18:10] [PID:14016] INFO in main: 
+[2026-01-03 21:21:20] [PID:3280] INFO in main: ======================================================================
+[2026-01-03 21:21:20] [PID:3280] INFO in main: CAMPUSVOICE v5.0.0 - WORKER 3280 STARTING
+[2026-01-03 21:21:20] [PID:3280] INFO in main: ======================================================================
+[2026-01-03 21:21:20] [PID:3280] INFO in main: 
+[2026-01-03 21:21:20] [PID:3280] INFO in main: 📋 Step 1: Loading configuration...
+[2026-01-03 21:21:20] [PID:3280] INFO in main:    ✅ Configuration loaded
+[2026-01-03 21:21:20] [PID:3280] INFO in main:       • Departments: 13
+[2026-01-03 21:21:20] [PID:3280] INFO in main:       • Categories: 3 (hostel, academic, infrastructure)
+[2026-01-03 21:21:20] [PID:3280] INFO in main:       • LLM Model: llama-3.3-70b-versatile
+[2026-01-03 21:21:20] [PID:3280] INFO in main:       • Groq API: ✅ Configured
+[2026-01-03 21:21:20] [PID:3280] INFO in main: 
+[2026-01-03 21:21:20] [PID:3280] INFO in main: 🔥 Step 2: Initializing Firebase Service...
+[2026-01-03 21:21:20] [PID:3280] INFO in main:    ✅ Firebase Service initialized
+[2026-01-03 21:21:20] [PID:3280] INFO in main:       • Collections: complaints, complaint_votes
+[2026-01-03 21:21:20] [PID:3280] INFO in main: 
+[2026-01-03 21:21:20] [PID:3280] INFO in main: 🤖 Step 3: Initializing LLM Engine...
+[2026-01-03 21:21:20] [PID:3280] INFO in main:    ✅ LLM Engine initialized
+[2026-01-03 21:21:20] [PID:3280] INFO in main:       • Status: Groq Available
+[2026-01-03 21:21:20] [PID:3280] INFO in main:       • Model: llama-3.3-70b-versatile
+[2026-01-03 21:21:20] [PID:3280] INFO in main:       • Abusive Detection: ✅ Enabled
+[2026-01-03 21:21:20] [PID:3280] INFO in main: 
+[2026-01-03 21:21:20] [PID:3280] INFO in main: ⚙️  Step 4: Initializing Complaint Processor...
+[2026-01-03 21:21:21] [PID:3280] INFO in main:    ✅ Complaint Processor initialized
+[2026-01-03 21:21:21] [PID:3280] INFO in main: 
+[2026-01-03 21:21:21] [PID:3280] INFO in main: ======================================================================
+[2026-01-03 21:21:21] [PID:3280] INFO in main: ✅ WORKER 3280 - ALL SERVICES READY
+[2026-01-03 21:21:21] [PID:3280] INFO in main: ======================================================================
+[2026-01-03 21:21:21] [PID:3280] INFO in main: 
+[2026-01-03 21:21:21] [PID:3280] INFO in main: 🚀 CampusVoice is ready to process complaints!
+[2026-01-03 21:21:21] [PID:3280] INFO in main:    • Worker ID: 3280
+[2026-01-03 21:21:21] [PID:3280] INFO in main:    • Debug Mode: ENABLED
+[2026-01-03 21:21:21] [PID:3280] INFO in main:    • Concurrent Processing: ENABLED
+[2026-01-03 21:21:21] [PID:3280] INFO in main: 
+[2026-01-03 21:21:21] [PID:3280] INFO in main: ======================================================================
+[2026-01-03 21:21:21] [PID:3280] INFO in main: 
+[2026-01-03 21:24:53] [PID:16936] INFO in main: ======================================================================
+[2026-01-03 21:24:53] [PID:16936] INFO in main: CAMPUSVOICE v5.0.0 - WORKER 16936 STARTING
+[2026-01-03 21:24:53] [PID:16936] INFO in main: ======================================================================
+[2026-01-03 21:24:53] [PID:16936] INFO in main: 
+[2026-01-03 21:24:53] [PID:16936] INFO in main: 📋 Step 1: Loading configuration...
+[2026-01-03 21:24:53] [PID:16936] INFO in main:    ✅ Configuration loaded
+[2026-01-03 21:24:53] [PID:16936] INFO in main:       • Departments: 13
+[2026-01-03 21:24:53] [PID:16936] INFO in main:       • Categories: 3 (hostel, academic, infrastructure)
+[2026-01-03 21:24:53] [PID:16936] INFO in main:       • LLM Model: llama-3.3-70b-versatile
+[2026-01-03 21:24:53] [PID:16936] INFO in main:       • Groq API: ✅ Configured
+[2026-01-03 21:24:53] [PID:16936] INFO in main: 
+[2026-01-03 21:24:53] [PID:16936] INFO in main: 🔥 Step 2: Initializing Firebase Service...
+[2026-01-03 21:24:53] [PID:16936] INFO in main:    ✅ Firebase Service initialized
+[2026-01-03 21:24:53] [PID:16936] INFO in main:       • Collections: complaints, complaint_votes
+[2026-01-03 21:24:53] [PID:16936] INFO in main: 
+[2026-01-03 21:24:53] [PID:16936] INFO in main: 🤖 Step 3: Initializing LLM Engine...
+[2026-01-03 21:24:54] [PID:16936] INFO in main:    ✅ LLM Engine initialized
+[2026-01-03 21:24:54] [PID:16936] INFO in main:       • Status: Groq Available
+[2026-01-03 21:24:54] [PID:16936] INFO in main:       • Model: llama-3.3-70b-versatile
+[2026-01-03 21:24:54] [PID:16936] INFO in main:       • Abusive Detection: ✅ Enabled
+[2026-01-03 21:24:54] [PID:16936] INFO in main: 
+[2026-01-03 21:24:54] [PID:16936] INFO in main: ⚙️  Step 4: Initializing Complaint Processor...
+[2026-01-03 21:24:54] [PID:16936] INFO in main:    ✅ Complaint Processor initialized
+[2026-01-03 21:24:54] [PID:16936] INFO in main: 
+[2026-01-03 21:24:54] [PID:16936] INFO in main: ======================================================================
+[2026-01-03 21:24:54] [PID:16936] INFO in main: ✅ WORKER 16936 - ALL SERVICES READY
+[2026-01-03 21:24:54] [PID:16936] INFO in main: ======================================================================
+[2026-01-03 21:24:54] [PID:16936] INFO in main: 
+[2026-01-03 21:24:54] [PID:16936] INFO in main: 🚀 CampusVoice is ready to process complaints!
+[2026-01-03 21:24:54] [PID:16936] INFO in main:    • Worker ID: 16936
+[2026-01-03 21:24:54] [PID:16936] INFO in main:    • Debug Mode: ENABLED
+[2026-01-03 21:24:54] [PID:16936] INFO in main:    • Concurrent Processing: ENABLED
+[2026-01-03 21:24:54] [PID:16936] INFO in main: 
+[2026-01-03 21:24:54] [PID:16936] INFO in main: ======================================================================
+[2026-01-03 21:24:54] [PID:16936] INFO in main: 
+[2026-01-16 17:36:28] [PID:18944] INFO in main: ======================================================================
+[2026-01-16 17:36:28] [PID:18944] INFO in main: CAMPUSVOICE v5.0.0 - WORKER 18944 STARTING
+[2026-01-16 17:36:28] [PID:18944] INFO in main: ======================================================================
+[2026-01-16 17:36:28] [PID:18944] INFO in main: 
+[2026-01-16 17:36:28] [PID:18944] INFO in main: 📋 Step 1: Loading configuration...
+[2026-01-16 17:36:28] [PID:18944] INFO in main:    ✅ Configuration loaded
+[2026-01-16 17:36:28] [PID:18944] INFO in main:       • Departments: 13
+[2026-01-16 17:36:28] [PID:18944] INFO in main:       • Categories: 3 (hostel, academic, infrastructure)
+[2026-01-16 17:36:28] [PID:18944] INFO in main:       • LLM Model: llama-3.3-70b-versatile
+[2026-01-16 17:36:28] [PID:18944] INFO in main:       • Groq API: ✅ Configured
+[2026-01-16 17:36:28] [PID:18944] INFO in main: 
+[2026-01-16 17:36:28] [PID:18944] INFO in main: 🔥 Step 2: Initializing Firebase Service...
+[2026-01-16 17:36:28] [PID:18944] INFO in main:    ✅ Firebase Service initialized
+[2026-01-16 17:36:28] [PID:18944] INFO in main:       • Collections: complaints, complaint_votes
+[2026-01-16 17:36:28] [PID:18944] INFO in main: 
+[2026-01-16 17:36:28] [PID:18944] INFO in main: 🤖 Step 3: Initializing LLM Engine...
+[2026-01-16 17:36:28] [PID:18944] INFO in main:    ✅ LLM Engine initialized
+[2026-01-16 17:36:28] [PID:18944] INFO in main:       • Status: Groq Available
+[2026-01-16 17:36:28] [PID:18944] INFO in main:       • Model: llama-3.3-70b-versatile
+[2026-01-16 17:36:28] [PID:18944] INFO in main:       • Abusive Detection: ✅ Enabled
+[2026-01-16 17:36:28] [PID:18944] INFO in main: 
+[2026-01-16 17:36:28] [PID:18944] INFO in main: ⚙️  Step 4: Initializing Complaint Processor...
+[2026-01-16 17:36:29] [PID:18944] INFO in main:    ✅ Complaint Processor initialized
+[2026-01-16 17:36:29] [PID:18944] INFO in main: 
+[2026-01-16 17:36:29] [PID:18944] INFO in main: ======================================================================
+[2026-01-16 17:36:29] [PID:18944] INFO in main: ✅ WORKER 18944 - ALL SERVICES READY
+[2026-01-16 17:36:29] [PID:18944] INFO in main: ======================================================================
+[2026-01-16 17:36:29] [PID:18944] INFO in main: 
+[2026-01-16 17:36:29] [PID:18944] INFO in main: 🚀 CampusVoice is ready to process complaints!
+[2026-01-16 17:36:29] [PID:18944] INFO in main:    • Worker ID: 18944
+[2026-01-16 17:36:29] [PID:18944] INFO in main:    • Debug Mode: ENABLED
+[2026-01-16 17:36:29] [PID:18944] INFO in main:    • Concurrent Processing: ENABLED
+[2026-01-16 17:36:29] [PID:18944] INFO in main: 
+[2026-01-16 17:36:29] [PID:18944] INFO in main: ======================================================================
+[2026-01-16 17:36:29] [PID:18944] INFO in main: 

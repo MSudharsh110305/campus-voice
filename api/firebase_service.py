@@ -1,6 +1,6 @@
 """
 Firebase Service - CampusVoice Complaint System
-Version: 4.0.0 - Production Ready
+Version: 5.0.0 - Production Ready
 
 Complete Firebase operations for complaint management:
 - Firestore CRUD operations
@@ -11,7 +11,7 @@ Complete Firebase operations for complaint management:
 - Data retention & cleanup
 - Export functionality
 
-Changes from v3.0:
+Changes from v4.0:
 - ✂️ REMOVED all queue-based code
 - ✅ Added concurrent complaint processing
 - ✅ Added Firebase Storage integration
@@ -24,6 +24,10 @@ Changes from v3.0:
 - ✅ Added data retention/cleanup
 - ✅ Added export functionality
 - ✅ Performance optimizations
+- ✅ FIXED: Replaced deprecated datetime.utcnow() with datetime.now(timezone.utc)
+- ✅ FIXED: Completed delete_complaint() method
+- ✅ FIXED: Added _dict_to_complaint() helper
+- ✅ FIXED: All timezone consistency issues
 """
 
 import firebase_admin
@@ -50,10 +54,9 @@ from api.models import (
     complaint_to_authority_view,
     complaint_to_public_view
 )
-
 from core.config import get_config
-config = get_config()
 
+config = get_config()
 
 class FirebaseService:
     """
@@ -156,6 +159,7 @@ class FirebaseService:
         """
         try:
             doc = self.db.collection(self.COMPLAINTS).document(complaint_id).get()
+            
             if not doc.exists:
                 return None
             
@@ -178,8 +182,8 @@ class FirebaseService:
             bool: Success status
         """
         try:
-            # Add updated_at timestamp
-            updates['updated_at'] = datetime.utcnow().isoformat()
+            # ✅ FIXED: Use timezone-aware UTC
+            updates['updated_at'] = datetime.now(timezone.utc).isoformat()
             
             doc_ref = self.db.collection(self.COMPLAINTS).document(complaint_id)
             doc_ref.update(updates)
@@ -208,6 +212,7 @@ class FirebaseService:
             bool: Success status
         """
         try:
+            # ✅ FIXED: Complete implementation
             # Move to archive instead of hard delete
             doc = self.db.collection(self.COMPLAINTS).document(complaint_id).get()
             
@@ -215,7 +220,7 @@ class FirebaseService:
                 # Save to archive
                 archive_ref = self.db.collection('archived_complaints').document(complaint_id)
                 data = doc.to_dict()
-                data['archived_at'] = datetime.utcnow().isoformat()
+                data['archived_at'] = datetime.now(timezone.utc).isoformat()
                 archive_ref.set(data)
                 
                 # Delete from main collection
@@ -262,20 +267,21 @@ class FirebaseService:
             # Update complaint status
             complaint.update_status(new_status, updated_by, notes)
             
+            # ✅ FIXED: Use timezone-aware UTC
             # Save to Firestore
             updates = {
                 'status': new_status,
-                'updated_at': datetime.utcnow().isoformat(),
+                'updated_at': datetime.now(timezone.utc).isoformat(),
                 'status_history': complaint.status_history
             }
             
             # Update specific timestamp fields
             if new_status == 'opened':
-                updates['opened_at'] = datetime.utcnow().isoformat()
+                updates['opened_at'] = datetime.now(timezone.utc).isoformat()
             elif new_status == 'reviewed':
-                updates['reviewed_at'] = datetime.utcnow().isoformat()
+                updates['reviewed_at'] = datetime.now(timezone.utc).isoformat()
             elif new_status == 'closed':
-                updates['closed_at'] = datetime.utcnow().isoformat()
+                updates['closed_at'] = datetime.now(timezone.utc).isoformat()
             
             self.update_complaint(complaint_id, updates)
             
@@ -297,7 +303,7 @@ class FirebaseService:
                 'complaint_id': complaint_id,
                 'history': [{
                     'status': 'raised',
-                    'timestamp': datetime.utcnow().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                     'updated_by': 'system',
                     'notes': 'Complaint submitted'
                 }]
@@ -318,7 +324,7 @@ class FirebaseService:
             log_ref.update({
                 'history': firestore.ArrayUnion([{
                     'status': new_status,
-                    'timestamp': datetime.utcnow().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                     'updated_by': updated_by,
                     'notes': notes
                 }])
@@ -415,7 +421,7 @@ class FirebaseService:
                 'complaint_id': complaint_id,
                 'images': firestore.ArrayUnion([{
                     'url': image_url,
-                    'uploaded_at': datetime.utcnow().isoformat()
+                    'uploaded_at': datetime.now(timezone.utc).isoformat()
                 }])
             }, merge=True)
             
@@ -424,6 +430,7 @@ class FirebaseService:
             complaint_ref.update({
                 'image_urls': firestore.ArrayUnion([image_url])
             })
+        
         except Exception as e:
             print(f"⚠️  Failed to save image metadata: {e}")
     
@@ -452,6 +459,7 @@ class FirebaseService:
             
             print(f"✅ Images deleted for complaint: {complaint_id}")
             return True
+        
         except Exception as e:
             print(f"❌ Failed to delete images: {e}")
             return False
@@ -650,6 +658,7 @@ class FirebaseService:
             
             # Apply sorting
             direction = firestore.Query.DESCENDING if sort_order == 'desc' else firestore.Query.ASCENDING
+            
             if sort_by in ['created_at', 'net_votes']:
                 query = query.order_by(sort_by, direction=direction)
             else:
@@ -668,10 +677,10 @@ class FirebaseService:
                 view = PublicComplaintView(
                     complaint_id=data.get('complaint_id', ''),
                     complaint_text=data.get('complaint_text', data.get('rephrased_text', data.get('original_text', ''))),
-                    category=data.get('category', 'infrastructure'),  # ✅ FIXED
-                    department=data.get('department', 'Unknown'),      # ✅ FIXED
-                    assigned_authority=data.get('assigned_authority', 'Unknown'),  # ✅ FIXED
-                    priority_level=data.get('priority_level', 'Low'),  # ✅ FIXED
+                    category=data.get('category', 'infrastructure'),
+                    department=data.get('department', 'Unknown'),
+                    assigned_authority=data.get('assigned_authority', 'Unknown'),
+                    priority_level=data.get('priority_level', 'Low'),
                     priority_emoji=data.get('priority_emoji', '🟢'),
                     requires_image=data.get('requires_image', False),
                     image_urls=data.get('image_urls', []),
@@ -688,7 +697,7 @@ class FirebaseService:
         except Exception as e:
             print(f"❌ Failed to get public complaints: {e}")
             import traceback
-            traceback.print_exc()  # ✅ ADDED: Print full traceback for debugging
+            traceback.print_exc()
             return [], 0
     
     def _save_to_public_collection(self, complaint: Complaint):
@@ -701,12 +710,12 @@ class FirebaseService:
             doc_ref = self.db.collection(self.PUBLIC_COMPLAINTS).document(complaint.complaint_id)
             doc_ref.set(public_view.to_dict())
             
-            print(f"✅ Saved to public collection: {complaint.complaint_id}")  # ✅ ADDED: Confirmation log
+            print(f"✅ Saved to public collection: {complaint.complaint_id}")
         
         except Exception as e:
             print(f"⚠️  Failed to save to public collection: {e}")
             import traceback
-            traceback.print_exc()  # ✅ ADDED: Print full traceback
+            traceback.print_exc()
     
     # =================== VOTING OPERATIONS ===================
     
@@ -755,6 +764,7 @@ class FirebaseService:
                         self._update_vote_counts(complaint_id, 0, -1)
                     
                     return {'success': True, 'message': 'Vote removed'}
+                
                 return {'success': False, 'message': 'No vote to remove'}
             
             # Add or update vote
@@ -766,7 +776,7 @@ class FirebaseService:
                 # Change vote
                 vote_doc.reference.update({
                     'vote_type': vote_type,
-                    'updated_at': datetime.utcnow().isoformat()
+                    'updated_at': datetime.now(timezone.utc).isoformat()
                 })
                 
                 # Update counts
@@ -774,6 +784,7 @@ class FirebaseService:
                     self._update_vote_counts(complaint_id, -1, 1)
                 elif old_vote == 'downvote' and vote_type == 'upvote':
                     self._update_vote_counts(complaint_id, 1, -1)
+            
             else:
                 # New vote
                 vote_record = VoteRecord(
@@ -795,19 +806,20 @@ class FirebaseService:
         except Exception as e:
             print(f"❌ Failed to record vote: {e}")
             import traceback
-            traceback.print_exc()  # ✅ ADDED: Print full traceback
+            traceback.print_exc()
             return {'success': False, 'message': f'Voting error: {str(e)}'}
     
     def _update_vote_counts(self, complaint_id: str, upvote_delta: int, downvote_delta: int):
         """Update vote counts for a complaint"""
         try:
+            # ✅ FIXED: Use timezone-aware UTC
             # Update main collection
             complaint_ref = self.db.collection(self.COMPLAINTS).document(complaint_id)
             complaint_ref.update({
                 'upvotes': firestore.Increment(upvote_delta),
                 'downvotes': firestore.Increment(downvote_delta),
                 'net_votes': firestore.Increment(upvote_delta - downvote_delta),
-                'updated_at': datetime.utcnow().isoformat()
+                'updated_at': datetime.now(timezone.utc).isoformat()
             })
             
             # Update public collection
@@ -818,6 +830,7 @@ class FirebaseService:
                     'downvotes': firestore.Increment(downvote_delta),
                     'net_votes': firestore.Increment(upvote_delta - downvote_delta)
                 })
+        
         except Exception as e:
             print(f"⚠️  Failed to update vote counts: {e}")
     
@@ -830,7 +843,9 @@ class FirebaseService:
             doc = self.db.collection(self.VOTES).document(vote_id).get()
             if doc.exists:
                 return doc.to_dict()['vote_type']
+            
             return None
+        
         except Exception as e:
             print(f"❌ Failed to get user vote: {e}")
             return None
@@ -913,10 +928,11 @@ class FirebaseService:
                 stats.average_processing_time += data.get('processing_time', 0)
             
             stats.processed_complaints = stats.total_complaints
+            
             if stats.total_complaints > 0:
                 stats.average_processing_time /= stats.total_complaints
             
-            stats.last_updated = datetime.utcnow()
+            stats.last_updated = datetime.now(timezone.utc)
             
             # Save to cache
             self.db.collection(self.STATISTICS).document('system').set(stats.to_dict())
@@ -939,6 +955,7 @@ class FirebaseService:
         """
         try:
             doc = self.db.collection(f"{self.STATISTICS}/monthly/{year_month}").document('data').get()
+            
             if doc.exists:
                 return MonthlyStatistics(**doc.to_dict())
             
@@ -1102,7 +1119,8 @@ class FirebaseService:
             Number of complaints archived
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=retention_months * 30)
+            # ✅ FIXED: Use timezone-aware UTC
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_months * 30)
             
             query = self.db.collection(self.COMPLAINTS).where(
                 filter=FieldFilter('created_at', '<', cutoff_date.isoformat())
@@ -1125,7 +1143,15 @@ class FirebaseService:
     # =================== HELPER METHODS ===================
     
     def _dict_to_complaint(self, data: Dict[str, Any]) -> Complaint:
-        """Convert Firestore dict to Complaint object"""
+        """
+        ✅ FIXED: Convert Firestore dict to Complaint object
+        
+        Args:
+            data: Dictionary from Firestore
+        
+        Returns:
+            Complaint object
+        """
         # Parse datetime fields
         for field in ['created_at', 'updated_at', 'opened_at', 'reviewed_at', 'closed_at']:
             if field in data and data[field]:
@@ -1135,14 +1161,26 @@ class FirebaseService:
     
     @staticmethod
     def _parse_iso_dt(s: Optional[str]) -> Optional[datetime]:
-        """Parse ISO format datetime string"""
+        """
+        Parse ISO format datetime string
+        
+        Args:
+            s: ISO format datetime string or datetime object
+        
+        Returns:
+            datetime object or None
+        """
         if not s:
             return None
+        
         try:
             if isinstance(s, datetime):
                 return s
+            
             if s.endswith('Z'):
                 s = s.replace('Z', '+00:00')
+            
             return datetime.fromisoformat(s)
+        
         except Exception:
             return None

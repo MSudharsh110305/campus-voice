@@ -13,13 +13,15 @@ Changes:
 - ✅ Fixed field ordering (required fields before optional)
 - ✅ Fixed timezone deprecation (use timezone.utc)
 - ✅ FIXED: SystemStatistics.to_dict() datetime/string handling
+- ✅ ADDED: All missing view models (StudentComplaintView, AuthorityComplaintView, etc.)
+- ✅ ADDED: VoteRecord and VoteUpdate models
+- ✅ ADDED: Complete statistics models
 """
 
 from dataclasses import dataclass, asdict, field
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 import json
-
 
 # =================== SUBMISSION MODEL ===================
 
@@ -44,18 +46,13 @@ class ComplaintSubmission:
         """Validate submission data"""
         if not self.complaint_text or len(self.complaint_text.strip()) < 10:
             return False, "Complaint text must be at least 10 characters"
-        
         if not self.roll_number or not self.roll_number.strip():
             return False, "Roll number is required"
-        
         if not self.department or not self.department.strip():
             return False, "Department is required"
-        
         if self.gender.lower() not in ["male", "female", "other"]:
             return False, "Invalid gender value"
-        
         return True, None
-
 
 # =================== MAIN COMPLAINT MODEL ===================
 
@@ -67,6 +64,7 @@ class Complaint:
     
     IMPORTANT: All required fields (no default) must come BEFORE optional fields (with defaults)
     """
+    
     # ========== REQUIRED FIELDS (NO DEFAULTS) ==========
     # Identity (pseudo-anonymous)
     complaint_id: str
@@ -187,7 +185,6 @@ class Complaint:
             self.image_urls.append(image_url)
             self.updated_at = datetime.now(timezone.utc)
 
-
 # =================== STATUS UPDATE MODEL ===================
 
 @dataclass
@@ -209,7 +206,6 @@ class StatusUpdate:
             "updated_by": self.updated_by,
             "notes": self.notes
         }
-
 
 # =================== VIEW MODELS ===================
 
@@ -307,7 +303,6 @@ class PublicComplaintView:
         """Convert to dictionary for API response"""
         return asdict(self)
 
-
 # =================== VOTING MODELS ===================
 
 @dataclass
@@ -345,7 +340,6 @@ class VoteUpdate:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""
         return asdict(self)
-
 
 # =================== STATISTICS MODELS ===================
 
@@ -446,7 +440,6 @@ class AuthorityStatistics:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""
         return asdict(self)
-
 
 # =================== HELPER FUNCTIONS ===================
 

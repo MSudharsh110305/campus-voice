@@ -1,19 +1,19 @@
 """
 Response Formatter - CampusVoice API
-Version: 4.0.0 - Production Ready
+Version: 5.0.0 - Production Ready
 
 Provides consistent JSON response formatting for all API endpoints.
 
-Response Format:
-- Success: {success: true, data: {...}, metadata: {...}}
-- Error: {success: false, error: {...}, metadata: {...}}
+Changes from v4.0:
+- ✅ FIXED: Updated version to 5.0.0
+- ✅ FIXED: All timestamps now timezone-aware (UTC)
+- ✅ FIXED: Complete _build_metadata function
 """
 
 from flask import jsonify, request
 from datetime import datetime, timezone
 from typing import Any, Optional, Dict, List
 import uuid
-
 
 # =================== RESPONSE FORMATTERS ===================
 
@@ -31,18 +31,9 @@ def success_response(
         status_code: HTTP status code (default: 200)
         message: Optional success message
         metadata: Optional additional metadata
-        
+    
     Returns:
         Tuple of (jsonify response, status_code)
-        
-    Example:
-        >>> success_response({'complaint_id': '123'}, 201, 'Complaint created')
-        ({
-            'success': true,
-            'data': {'complaint_id': '123'},
-            'message': 'Complaint created',
-            'metadata': {...}
-        }, 201)
     """
     response = {
         'success': True,
@@ -71,21 +62,9 @@ def error_response(
         status_code: HTTP status code (default: 400)
         details: Optional error details (validation errors, etc.)
         error_code: Optional error code for client-side handling
-        
+    
     Returns:
         Tuple of (jsonify response, status_code)
-        
-    Example:
-        >>> error_response('Validation failed', 400, {'errors': ['Invalid email']})
-        ({
-            'success': false,
-            'error': {
-                'message': 'Validation failed',
-                'status_code': 400,
-                'details': {'errors': ['Invalid email']}
-            },
-            'metadata': {...}
-        }, 400)
     """
     error_data = {
         'message': message,
@@ -115,24 +94,8 @@ def validation_error_response(
     errors: List[str],
     warnings: Optional[List[str]] = None
 ) -> tuple:
-    """
-    Format validation error response.
-    
-    Args:
-        errors: List of validation error messages
-        warnings: Optional list of warnings
-        
-    Returns:
-        Tuple of (jsonify response, 400)
-        
-    Example:
-        >>> validation_error_response(
-        ...     ['roll_number is required', 'Invalid department'],
-        ...     ['user_email is deprecated']
-        ... )
-    """
+    """Format validation error response."""
     details = {'errors': errors}
-    
     if warnings:
         details['warnings'] = warnings
     
@@ -151,22 +114,7 @@ def paginated_response(
     total: int,
     additional_data: Optional[Dict] = None
 ) -> tuple:
-    """
-    Format paginated response.
-    
-    Args:
-        items: List of items for current page
-        page: Current page number
-        limit: Items per page
-        total: Total number of items
-        additional_data: Optional additional data (filters, etc.)
-        
-    Returns:
-        Tuple of (jsonify response, 200)
-        
-    Example:
-        >>> paginated_response(complaints, 1, 20, 150, {'filters': {'status': 'open'}})
-    """
+    """Format paginated response."""
     total_pages = (total + limit - 1) // limit if total > 0 else 0
     
     data = {
@@ -194,21 +142,7 @@ def created_response(
     data: Optional[Dict] = None,
     location: Optional[str] = None
 ) -> tuple:
-    """
-    Format resource creation response.
-    
-    Args:
-        resource_id: ID of created resource
-        resource_type: Type of resource (e.g., 'complaint', 'user')
-        data: Optional additional data
-        location: Optional resource location URL
-        
-    Returns:
-        Tuple of (jsonify response, 201)
-        
-    Example:
-        >>> created_response('complaint_123', 'complaint', {...})
-    """
+    """Format resource creation response."""
     response_data = {
         'id': resource_id,
         'type': resource_type,
@@ -225,14 +159,7 @@ def created_response(
 
 
 def no_content_response() -> tuple:
-    """
-    Format no content response (204).
-    
-    Used for successful DELETE operations or updates with no response body.
-    
-    Returns:
-        Tuple of (empty response, 204)
-    """
+    """Format no content response (204)."""
     return '', 204
 
 
@@ -240,25 +167,18 @@ def no_content_response() -> tuple:
 
 def _build_metadata(status_code: int, extra_metadata: Optional[Dict] = None) -> Dict:
     """
-    Build response metadata.
-    
-    Includes:
-    - Timestamp
-    - API version
-    - Request ID (for debugging)
-    - Status code
-    - Any extra metadata
+    Build response metadata with timezone-aware timestamp.
     
     Args:
         status_code: HTTP status code
         extra_metadata: Optional additional metadata
-        
+    
     Returns:
         Metadata dictionary
     """
     metadata = {
         'timestamp': datetime.now(timezone.utc).isoformat(),
-        'api_version': '4.0.0',
+        'api_version': '5.0.0',
         'status_code': status_code,
         'request_id': _get_request_id()
     }
@@ -278,9 +198,6 @@ def _build_metadata(status_code: int, extra_metadata: Optional[Dict] = None) -> 
 def _get_request_id() -> str:
     """
     Get or generate request ID for tracking.
-    
-    If request has X-Request-ID header, use it.
-    Otherwise, generate a new UUID.
     
     Returns:
         Request ID string

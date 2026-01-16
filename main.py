@@ -1,15 +1,6 @@
 """
 Main Application - CampusVoice Complaint System
-Version: 4.0.0 - Production Ready (Windows Compatible)
-
-Flask API server with:
-- Complete REST API endpoints
-- Concurrent request handling
-- Windows console compatibility
-- Firebase integration
-- Groq LLM processing
-- Debug logging
-- CORS support
+Version: 5.0.0 - Production Ready (Windows Compatible)
 """
 
 import os
@@ -45,16 +36,14 @@ from api.firebase_service import FirebaseService
 from api.intelligent_llm_engine import IntelligentLLMEngine
 from api.complaint_processor import ComplaintProcessor
 
-
 # =================== CONFIGURATION ===================
 
 class Config:
     """Flask application configuration."""
-    
     # Server configuration
-    HOST = os.getenv('API_HOST', os.getenv('FLASK_HOST', '0.0.0.0'))
-    PORT = int(os.getenv('API_PORT', os.getenv('FLASK_PORT', '5000')))
-    DEBUG = os.getenv('DEBUG', os.getenv('FLASK_DEBUG', 'true')).lower() == 'true'
+    HOST = os.getenv('API_HOST', '0.0.0.0')
+    PORT = int(os.getenv('API_PORT', '5000'))
+    DEBUG = os.getenv('DEBUG', 'true').lower() == 'true'
     
     # API configuration
     API_VERSION = 'v1'
@@ -75,131 +64,6 @@ class Config:
     # Threading
     THREADED = True
 
-
-# =================== FLASK APP FACTORY ===================
-
-def create_app(config_class=Config):
-    """Create and configure Flask application."""
-    app = Flask(__name__)
-    app.config.from_object(config_class)
-    
-    # Configure logging
-    configure_logging(app)
-    
-    # Configure CORS
-    CORS(app, resources={
-        f"{config_class.API_PREFIX}/*": {
-            "origins": config_class.CORS_ORIGINS,
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization", "X-Request-ID"],
-            "expose_headers": ["X-Request-ID"],
-            "supports_credentials": True
-        }
-    })
-    
-    # Initialize services
-    initialize_services(app)
-    
-    # Register blueprints
-    app.register_blueprint(api_bp, url_prefix=config_class.API_PREFIX)
-    
-    # Register error handlers
-    register_error_handlers(app)
-    
-    # Register hooks
-    register_hooks(app)
-    
-    # Root route
-    @app.route('/')
-    def index():
-        return jsonify({
-            'name': 'CampusVoice Complaint System',
-            'version': '4.0.0',
-            'api_version': config_class.API_VERSION,
-            'status': 'running',
-            'endpoints': {
-                'api_base': config_class.API_PREFIX,
-                'health': f"{config_class.API_PREFIX}/health",
-                'submit': f"{config_class.API_PREFIX}/complaints"
-            },
-            'timestamp': datetime.now(timezone.utc).isoformat()
-        })
-    
-    return app
-
-
-# =================== SERVICE INITIALIZATION ===================
-
-def initialize_services(app):
-    """Initialize all backend services."""
-    app.logger.info("=" * 70)
-    app.logger.info("CAMPUSVOICE COMPLAINT SYSTEM - STARTING UP")
-    app.logger.info("=" * 70)
-    app.logger.info("")
-    
-    try:
-        # 1. Load configuration
-        app.logger.info("Step 1: Loading configuration...")
-        config = get_config()
-        app.config_obj = config
-        app.logger.info("   [OK] Configuration loaded")
-        app.logger.info(f"   Departments: {len(config.departments)}")
-        app.logger.info(f"   Categories: 3 (hostel, academic, infrastructure)")
-        app.logger.info(f"   LLM Model: {config.groq_model}")
-        
-        if config.groq_api_key:
-            app.logger.info("   [OK] Groq API Key: Configured")
-        else:
-            app.logger.warning("   [WARN] Groq API Key: NOT SET")
-            app.logger.warning("   Set GROQ_API_KEY in .env for LLM features")
-        app.logger.info("")
-        
-        # 2. Initialize Firebase
-        app.logger.info("Step 2: Initializing Firebase Service...")
-        firebase_service = FirebaseService()
-        app.firebase_service = firebase_service
-        app.logger.info("   [OK] Firebase Service initialized")
-        app.logger.info(f"   Collections: {firebase_service.COMPLAINTS}, {firebase_service.VOTES}")
-        app.logger.info("")
-        
-        # 3. Initialize LLM Engine
-        app.logger.info("Step 3: Initializing LLM Engine...")
-        llm_engine = IntelligentLLMEngine()
-        app.llm_engine = llm_engine
-        app.logger.info("   [OK] LLM Engine initialized")
-        app.logger.info(f"   Status: {'Groq Available' if llm_engine.groq_available else 'Rule-based Fallback'}")
-        app.logger.info(f"   Model: {llm_engine.groq_model if llm_engine.groq_available else 'Rule-based'}")
-        app.logger.info("")
-        
-        # 4. Initialize Complaint Processor
-        app.logger.info("Step 4: Initializing Complaint Processor...")
-        complaint_processor = ComplaintProcessor()
-        app.complaint_processor = complaint_processor
-        app.logger.info("   [OK] Complaint Processor initialized")
-        app.logger.info("")
-        
-        app.logger.info("=" * 70)
-        app.logger.info("ALL SERVICES INITIALIZED SUCCESSFULLY")
-        app.logger.info("=" * 70)
-        app.logger.info("")
-        app.logger.info("CampusVoice is ready to accept complaints!")
-        app.logger.info(f"API Endpoint: http://{app.config['HOST']}:{app.config['PORT']}{Config.API_PREFIX}")
-        app.logger.info(f"Debug Mode: {'ENABLED' if app.config['DEBUG'] else 'DISABLED'}")
-        app.logger.info(f"Concurrent Processing: ENABLED")
-        app.logger.info("")
-        app.logger.info("=" * 70)
-        app.logger.info("")
-        
-    except Exception as e:
-        app.logger.error("=" * 70)
-        app.logger.error("SERVICE INITIALIZATION FAILED")
-        app.logger.error("=" * 70)
-        app.logger.error(f"Error: {str(e)}")
-        app.logger.error(traceback.format_exc())
-        app.logger.error("=" * 70)
-        raise
-
-
 # =================== LOGGING CONFIGURATION ===================
 
 def configure_logging(app):
@@ -209,10 +73,9 @@ def configure_logging(app):
     
     # Formatters
     detailed_formatter = logging.Formatter(
-        '[%(asctime)s] %(levelname)s in %(module)s: %(message)s',
+        '[%(asctime)s] [PID:%(process)d] %(levelname)s in %(module)s: %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
-    
     simple_formatter = logging.Formatter('%(levelname)s: %(message)s')
     
     # Console handler (UTF-8 for Windows)
@@ -232,7 +95,7 @@ def configure_logging(app):
         f"logs/{app.config['LOG_FILE']}",
         maxBytes=app.config['LOG_MAX_BYTES'],
         backupCount=app.config['LOG_BACKUP_COUNT'],
-        encoding='utf-8'  # UTF-8 for file
+        encoding='utf-8'
     )
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(detailed_formatter)
@@ -242,6 +105,72 @@ def configure_logging(app):
     werkzeug_logger = logging.getLogger('werkzeug')
     werkzeug_logger.setLevel(logging.INFO if app.config['DEBUG'] else logging.WARNING)
 
+# =================== SERVICE INITIALIZATION ===================
+
+def initialize_services(app):
+    """Initialize all backend services."""
+    app.logger.info("=" * 70)
+    app.logger.info(f"CAMPUSVOICE v5.0.0 - WORKER {os.getpid()} STARTING")
+    app.logger.info("=" * 70)
+    app.logger.info("")
+    
+    try:
+        # 1. Load configuration
+        app.logger.info("📋 Step 1: Loading configuration...")
+        config = get_config()
+        app.config_obj = config
+        app.logger.info("   ✅ Configuration loaded")
+        app.logger.info(f"      • Departments: {len(config.departments)}")
+        app.logger.info(f"      • Categories: 3 (hostel, academic, infrastructure)")
+        app.logger.info(f"      • LLM Model: {config.groq_model}")
+        app.logger.info(f"      • Groq API: {'✅ Configured' if config.groq_api_key else '❌ NOT SET'}")
+        app.logger.info("")
+        
+        # 2. Initialize Firebase
+        app.logger.info("🔥 Step 2: Initializing Firebase Service...")
+        firebase_service = FirebaseService()
+        app.firebase_service = firebase_service
+        app.logger.info("   ✅ Firebase Service initialized")
+        app.logger.info(f"      • Collections: {firebase_service.COMPLAINTS}, {firebase_service.VOTES}")
+        app.logger.info("")
+        
+        # 3. Initialize LLM Engine
+        app.logger.info("🤖 Step 3: Initializing LLM Engine...")
+        llm_engine = IntelligentLLMEngine()
+        app.llm_engine = llm_engine
+        app.logger.info("   ✅ LLM Engine initialized")
+        app.logger.info(f"      • Status: {'Groq Available' if llm_engine.groq_available else 'Rule-based Fallback'}")
+        app.logger.info(f"      • Model: {llm_engine.groq_model if llm_engine.groq_available else 'Rule-based'}")
+        app.logger.info(f"      • Abusive Detection: ✅ Enabled")
+        app.logger.info("")
+        
+        # 4. Initialize Complaint Processor
+        app.logger.info("⚙️  Step 4: Initializing Complaint Processor...")
+        complaint_processor = ComplaintProcessor()
+        app.complaint_processor = complaint_processor
+        app.logger.info("   ✅ Complaint Processor initialized")
+        app.logger.info("")
+        
+        app.logger.info("=" * 70)
+        app.logger.info(f"✅ WORKER {os.getpid()} - ALL SERVICES READY")
+        app.logger.info("=" * 70)
+        app.logger.info("")
+        app.logger.info("🚀 CampusVoice is ready to process complaints!")
+        app.logger.info(f"   • Worker ID: {os.getpid()}")
+        app.logger.info(f"   • Debug Mode: {'ENABLED' if app.config['DEBUG'] else 'DISABLED'}")
+        app.logger.info(f"   • Concurrent Processing: ENABLED")
+        app.logger.info("")
+        app.logger.info("=" * 70)
+        app.logger.info("")
+        
+    except Exception as e:
+        app.logger.error("=" * 70)
+        app.logger.error("❌ SERVICE INITIALIZATION FAILED")
+        app.logger.error("=" * 70)
+        app.logger.error(f"Error: {str(e)}")
+        app.logger.error(traceback.format_exc())
+        app.logger.error("=" * 70)
+        raise
 
 # =================== ERROR HANDLERS ===================
 
@@ -280,7 +209,6 @@ def register_error_handlers(app):
         app.logger.error(traceback.format_exc())
         return error_response("An unexpected error occurred", 500)
 
-
 # =================== REQUEST/RESPONSE HOOKS ===================
 
 def register_hooks(app):
@@ -292,11 +220,11 @@ def register_hooks(app):
             from flask import request
             app.logger.debug("=" * 70)
             app.logger.debug(f"INCOMING REQUEST")
-            app.logger.debug(f"   Method: {request.method}")
-            app.logger.debug(f"   Path: {request.path}")
-            app.logger.debug(f"   Remote: {request.remote_addr}")
+            app.logger.debug(f"  Method: {request.method}")
+            app.logger.debug(f"  Path: {request.path}")
+            app.logger.debug(f"  Remote: {request.remote_addr}")
             if request.args:
-                app.logger.debug(f"   Query: {dict(request.args)}")
+                app.logger.debug(f"  Query: {dict(request.args)}")
             app.logger.debug("=" * 70)
     
     @app.after_request
@@ -305,8 +233,8 @@ def register_hooks(app):
             from flask import request
             app.logger.debug("=" * 70)
             app.logger.debug(f"OUTGOING RESPONSE")
-            app.logger.debug(f"   Status: {response.status_code}")
-            app.logger.debug(f"   Path: {request.path}")
+            app.logger.debug(f"  Status: {response.status_code}")
+            app.logger.debug(f"  Path: {request.path}")
             app.logger.debug("=" * 70)
         return response
     
@@ -317,45 +245,121 @@ def register_hooks(app):
         response.headers['X-XSS-Protection'] = '1; mode=block'
         return response
 
+# =================== FLASK APP FACTORY ===================
+
+def create_app(config_class=Config):
+    """Create and configure Flask application."""
+    app = Flask(__name__)
+    app.config.from_object(config_class)
+    
+    # Configure logging FIRST
+    configure_logging(app)
+    
+    # Configure CORS
+    CORS(app, resources={
+        f"{config_class.API_PREFIX}/*": {
+            "origins": config_class.CORS_ORIGINS,
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Request-ID"],
+            "expose_headers": ["X-Request-ID"],
+            "supports_credentials": True
+        }
+    })
+    
+    # Initialize services
+    initialize_services(app)
+    
+    # Register blueprints
+    app.register_blueprint(api_bp, url_prefix=config_class.API_PREFIX)
+    
+    # Register error handlers
+    register_error_handlers(app)
+    
+    # Register hooks
+    register_hooks(app)
+    
+    # Root route
+    @app.route('/')
+    def index():
+        return jsonify({
+            'name': 'CampusVoice Complaint System',
+            'version': '5.0.0',
+            'api_version': config_class.API_VERSION,
+            'status': 'running',
+            'features': [
+                'Intelligent LLM-powered categorization',
+                'Automatic authority routing',
+                'Priority scoring',
+                'Real-time Firebase sync',
+                'Anonymous submissions',
+                'Vote-based trending',
+                'Multi-image support'
+            ],
+            'endpoints': {
+                'api_base': config_class.API_PREFIX,
+                'health': f"{config_class.API_PREFIX}/health",
+                'submit': f"{config_class.API_PREFIX}/complaints",
+                'list': f"{config_class.API_PREFIX}/complaints"
+            },
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        })
+    
+    return app
 
 # =================== MAIN EXECUTION ===================
 
 def main():
     """Main entry point."""
+    print("""
+╔═══════════════════════════════════════════════════════════════════╗
+║                                                                   ║
+║              CAMPUSVOICE COMPLAINT SYSTEM v5.0.0                 ║
+║                                                                   ║
+║        Intelligent complaint management powered by Groq LLM       ║
+║                                                                   ║
+╚═══════════════════════════════════════════════════════════════════╝
+""")
+    
     try:
+        # Create Flask app
         app = create_app()
         
-        app.logger.info("Starting Flask development server...")
-        app.logger.info("")
+        # Print startup info
+        print(f"""
+🚀 Starting Flask development server...
+   • Host: {app.config['HOST']}
+   • Port: {app.config['PORT']}
+   • Debug: {app.config['DEBUG']}
+   • Version: 5.0.0
+
+📡 API Endpoints:
+   • Root: http://{app.config['HOST']}:{app.config['PORT']}/
+   • Health: http://{app.config['HOST']}:{app.config['PORT']}/api/v1/health
+   • Submit: http://{app.config['HOST']}:{app.config['PORT']}/api/v1/complaints
+
+Press Ctrl+C to stop the server
+""")
         
+        # Start Flask server
         app.run(
             host=app.config['HOST'],
             port=app.config['PORT'],
             debug=app.config['DEBUG'],
             threaded=app.config['THREADED'],
-            use_reloader=False
+            use_reloader=False  # Disable reloader to prevent double initialization
         )
         
     except KeyboardInterrupt:
         print("\n")
-        if 'app' in locals():
-            app.logger.info("Received shutdown signal (Ctrl+C)")
+        print("=" * 70)
+        print("🛑 Server shutting down gracefully...")
+        print("=" * 70)
+        print("")
+        
     except Exception as e:
-        print(f"\nFatal error: {e}")
+        print(f"\n❌ Fatal error: {e}")
         print(traceback.format_exc())
         sys.exit(1)
 
-
 if __name__ == '__main__':
-    print("""
-    ===================================================================
-                                                                   
-              CAMPUSVOICE COMPLAINT SYSTEM                  
-                      Version 4.0.0                                
-                                                                   
-      Intelligent complaint management powered by Groq LLM             
-                                                                   
-    ===================================================================
-    """)
-    
     main()

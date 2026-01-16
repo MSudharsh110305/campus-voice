@@ -1,9 +1,13 @@
 """
 API Configuration
 Flask app configuration with security and environment variable support
-Version: 4.0.0 - Production Ready
+Version: 5.0.0 - Production Ready
 
-Changes:
+Changes from v4.0:
+- ✅ FIXED: Version updated to 5.0.0
+- ✅ FIXED: print_config method shows v5.0
+- ✅ Consistent with all other v5.0 modules
+- ✅ Added abusive language detection settings
 - ✅ Removed queue-based settings
 - ✅ Added concurrent processing configuration
 - ✅ Added image upload settings
@@ -23,18 +27,21 @@ class APIConfig:
     """
     Flask API configuration with secure defaults
     """
-
+    
     # =================== SECURITY ===================
+    
     # Secret key for Flask sessions (CHANGE IN PRODUCTION!)
     SECRET_KEY = os.getenv(
         'SECRET_KEY',
         'campus-grievance-portal-secret-key-2025-CHANGE-IN-PRODUCTION'
     )
-
+    
     # CORS settings (for frontend integration)
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*').split(',')
-
+    
+    
     # =================== FIREBASE ===================
+    
     # Firebase credentials path
     FIREBASE_CREDENTIALS_PATH = os.getenv(
         'FIREBASE_CREDENTIALS_PATH',
@@ -46,26 +53,32 @@ class APIConfig:
         'FIREBASE_STORAGE_BUCKET',
         'campusvoice-images'
     )
-
+    
+    
     # =================== GROQ LLM ===================
+    
     # Groq API key (REQUIRED for LLM processing)
     GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
     GROQ_MODEL = os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile')
     GROQ_TIMEOUT = int(os.getenv('GROQ_TIMEOUT', '60'))
     GROQ_MAX_RETRIES = int(os.getenv('GROQ_MAX_RETRIES', '3'))
-
+    
+    
     # =================== FLASK CONFIG ===================
+    
     # JSON response formatting
     JSON_SORT_KEYS = False
     JSONIFY_PRETTYPRINT_REGULAR = True
-
+    
     # Request limits
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB max request size (for images)
-
+    
     # Timeout settings
     REQUEST_TIMEOUT = 60  # 60 seconds
-
+    
+    
     # =================== CONCURRENT PROCESSING ===================
+    
     # Process complaints concurrently (NO QUEUE!)
     MAX_CONCURRENT_COMPLAINTS = int(os.getenv('MAX_CONCURRENT_COMPLAINTS', '100'))
     PROCESSING_TIMEOUT = int(os.getenv('PROCESSING_TIMEOUT', '120'))  # 2 minutes per complaint
@@ -73,8 +86,10 @@ class APIConfig:
     # Batch processing for multiple submissions
     ENABLE_BATCH_PROCESSING = True
     MAX_BATCH_SIZE = 50  # Process up to 50 complaints at once
-
+    
+    
     # =================== IMAGE UPLOAD SETTINGS ===================
+    
     # Image upload configuration
     ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp']
     MAX_IMAGE_SIZE_MB = 5
@@ -86,8 +101,10 @@ class APIConfig:
     IMAGE_MAX_WIDTH = 1920
     IMAGE_MAX_HEIGHT = 1080
     IMAGE_QUALITY = 85  # JPEG quality (1-100)
-
+    
+    
     # =================== API RATE LIMITING ===================
+    
     # Rate limiting (per user based on roll number)
     RATELIMIT_ENABLED = os.getenv('RATELIMIT_ENABLED', 'True').lower() == 'true'
     RATELIMIT_STORAGE_URL = os.getenv('RATELIMIT_STORAGE_URL', 'memory://')
@@ -97,8 +114,10 @@ class APIConfig:
     RATELIMIT_VOTE = "50 per hour"  # Voting on complaints
     RATELIMIT_VIEW = "100 per hour"  # Viewing complaints
     RATELIMIT_STATUS = "30 per hour"  # Status updates (authorities)
-
+    
+    
     # =================== PAGINATION ===================
+    
     # Pagination settings for list endpoints
     DEFAULT_PAGE_SIZE = 20
     MAX_PAGE_SIZE = 100
@@ -107,8 +126,10 @@ class APIConfig:
     ALLOWED_SORT_FIELDS = ['created_at', 'priority_score', 'net_votes', 'status']
     DEFAULT_SORT_FIELD = 'created_at'
     DEFAULT_SORT_ORDER = 'desc'  # 'asc' or 'desc'
-
+    
+    
     # =================== ENDPOINT PATHS ===================
+    
     # API endpoint base paths
     API_VERSION = 'v1'
     API_PREFIX = f'/api/{API_VERSION}'
@@ -130,8 +151,10 @@ class APIConfig:
     ENDPOINT_ADMIN_STATS = f'{API_PREFIX}/admin/statistics'
     ENDPOINT_ADMIN_ALL_COMPLAINTS = f'{API_PREFIX}/admin/complaints'
     ENDPOINT_ADMIN_MONTHLY_STATS = f'{API_PREFIX}/admin/statistics/monthly'
-
+    
+    
     # =================== RESPONSE FORMATTING ===================
+    
     # Standard response format
     RESPONSE_FORMAT = {
         'success': True,
@@ -146,18 +169,33 @@ class APIConfig:
     
     # Hide sensitive fields in responses
     HIDE_ROLL_NUMBER_FOR = ['hod', 'warden', 'deputy_warden', 'ao']  # Principal can see
-
+    
+    
+    # =================== ABUSIVE LANGUAGE DETECTION (v5.0) ===================
+    
+    # Abusive language detection settings
+    ABUSIVE_LANGUAGE_DETECTION = os.getenv('ABUSIVE_LANGUAGE_DETECTION', 'True').lower() == 'true'
+    MAX_ABUSIVE_VIOLATIONS = int(os.getenv('MAX_ABUSIVE_VIOLATIONS', '3'))
+    AUTO_FLAG_ABUSIVE_USERS = True
+    CLEAN_ABUSIVE_TEXT = True  # Remove/mask abusive words
+    
+    
     # =================== DATA RETENTION ===================
+    
     # Auto-deletion settings (from core config)
     DATA_RETENTION_MONTHS = int(os.getenv('DATA_RETENTION_MONTHS', '6'))
     CLEANUP_SCHEDULE_CRON = os.getenv('CLEANUP_SCHEDULE_CRON', '0 2 * * *')  # 2 AM daily
-
+    
+    
     # =================== DEBUG MODE ===================
+    
     # Debug mode (NEVER enable in production!)
     DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
     TESTING = os.getenv('TESTING', 'False').lower() == 'true'
-
+    
+    
     # =================== LOGGING ===================
+    
     # Logging configuration
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
     LOG_FILE = os.getenv('LOG_FILE', 'campus_voice.log')
@@ -166,44 +204,48 @@ class APIConfig:
     # Log all API requests
     LOG_REQUESTS = True
     LOG_RESPONSES = DEBUG  # Only in debug mode
-
+    
+    
     # =================== HEALTH CHECK ===================
+    
     # Health check endpoint
     ENDPOINT_HEALTH = '/health'
     HEALTH_CHECK_INTERVAL = 60  # seconds
-
+    
+    
     # =================== VALIDATION ===================
+    
     @classmethod
     def validate(cls):
         """Validate critical configuration"""
         errors = []
-
+        
         # Check Firebase credentials exist
         if not os.path.exists(cls.FIREBASE_CREDENTIALS_PATH):
             errors.append(f"Firebase credentials not found: {cls.FIREBASE_CREDENTIALS_PATH}")
-
+        
         # Warn if Groq API key is missing (non-critical - fallback to rule-based)
         if not cls.GROQ_API_KEY:
             print("⚠️  WARNING: GROQ_API_KEY not set. Using rule-based fallback.")
-
+        
         # Error if secret key is default in production
         if not cls.DEBUG and "CHANGE-IN-PRODUCTION" in cls.SECRET_KEY:
             errors.append("SECRET_KEY must be changed in production!")
-
+        
         # Validate image settings
         if cls.MAX_IMAGE_SIZE_MB > cls.MAX_CONTENT_LENGTH / (1024 * 1024):
             errors.append("MAX_IMAGE_SIZE_MB exceeds MAX_CONTENT_LENGTH")
-
+        
         if errors:
             raise ValueError(f"Configuration errors:\n" + "\n".join(f"  - {e}" for e in errors))
-
+        
         return True
-
+    
     @classmethod
     def print_config(cls):
         """Print configuration summary (for debugging)"""
         print("=" * 60)
-        print("🔧 CampusVoice API Configuration v4.0")
+        print("🔧 CampusVoice API Configuration v5.0")  # ✅ FIXED: Updated version
         print("=" * 60)
         print(f"  Debug: {'✅ Enabled' if cls.DEBUG else '❌ Disabled'}")
         print(f"  Groq API: {'✅ Configured' if cls.GROQ_API_KEY else '⚠️  Missing (using fallback)'}")
@@ -214,6 +256,7 @@ class APIConfig:
         print(f"  Request Timeout: {cls.REQUEST_TIMEOUT}s")
         print(f"  Concurrent Processing: {cls.MAX_CONCURRENT_COMPLAINTS} complaints")
         print(f"  Batch Processing: {'✅ Enabled' if cls.ENABLE_BATCH_PROCESSING else '❌ Disabled'}")
+        print(f"  Abusive Detection: {'✅ Enabled' if cls.ABUSIVE_LANGUAGE_DETECTION else '❌ Disabled'}")  # ✅ ADDED
         print(f"  Data Retention: {cls.DATA_RETENTION_MONTHS} months")
         print(f"  API Version: {cls.API_VERSION}")
         print("=" * 60)
